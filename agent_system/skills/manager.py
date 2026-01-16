@@ -1,0 +1,119 @@
+"""
+技能管理器（简化版）
+重构后：只负责提供元数据，不再提供"加载完整技能"的功能
+"""
+from pathlib import Path
+from typing import Dict, List, Optional
+from .loader import SkillLoader
+
+
+class SkillManager:
+    """
+    技能管理器（简化版）
+    
+    职责：
+    1. 扫描技能目录
+    2. 提取轻量级元数据（YAML frontmatter）
+    3. 生成技能摘要（用于 system prompt）
+    
+    不再职责：
+    - 按需加载完整技能文档（现在由 Agent 通过 bash 自己读取）
+    - 管理文件列表（Agent 通过 bash ls 自己查看）
+    - 缓存完整内容（不需要了）
+    """
+    
+    def __init__(self, skills_dir: Path):
+        """
+        初始化技能管理器
+        
+        Args:
+            skills_dir: 技能目录路径
+        """
+        self.skills_dir = Path(skills_dir)
+        self.skills: Dict[str, Dict] = {}  # skill_name -> {metadata, file_path, dir_path}
+        self.scan_skills()
+    
+    def scan_skills(self):
+        """扫描技能目录，加载所有技能的元数据"""
+        self.skills.clear()
+        
+        # 查找所有 SKILL.md 文件
+        skill_files = list(self.skills_dir.glob("**/SKILL.md"))
+        
+        for skill_file in skill_files:
+            try:
+                # 只提取元数据（轻量级）
+                metadata = SkillLoader.extract_metadata_only(skill_file)
+                skill_name = metadata.get('name', skill_file.parent.name)
+                
+                self.skills[skill_name] = {
+                    'metadata': metadata,
+                    'file_path': skill_file,
+                    'dir_path': skill_file.parent
+                }
+                
+                print(f"[SkillManager] 已索引技能: {skill_name}")
+            
+            except Exception as e:
+                print(f"[SkillManager] 加载技能失败 {skill_file}: {e}")
+    
+    def get_skill_metadata(self, skill_name: str) -> Optional[Dict]:
+        """
+        获取技能的元数据
+        
+        Args:
+            skill_name: 技能名称
+            
+        Returns:
+            元数据字典，如果不存在返回 None
+        """
+        skill = self.skills.get(skill_name)
+        return skill['metadata'] if skill else None
+    
+    def list_skills(self) -> List[str]:
+        """
+        列出所有可用的技能名称
+        
+        Returns:
+            技能名称列表
+        """
+        return list(self.skills.keys())
+    
+    def get_skills_summary(self) -> str:
+        """
+        获取所有技能的简要摘要（用于系统提示词）
+        
+        格式：只包含 name 和 description，非常轻量级（每个约 30-50 tokens）
+        
+        Returns:
+            格式化的技能摘要字符串
+        """
+        if not self.skills:
+            return "No skills available."
+        
+        lines = []
+        
+        for skill_name, skill_info in self.skills.items():
+            metadata = skill_info['metadata']
+            description = metadata.get('description', 'No description')
+            skill_path = skill_info['dir_path'].relative_to(self.skills_dir.parent)
+            
+            lines.append(f"### {skill_name}")
+            lines.append(f"**Description**: {description}")
+            lines.append(f"**Location**: `{skill_path}/SKILL.md`")
+            lines.append("")
+        
+        return "\n".join(lines)
+    
+    def get_skill_directory(self, skill_name: str) -> Optional[Path]:
+        """
+        获取技能目录路径（供工具使用）
+        
+        Args:
+            skill_name: 技能名称
+            
+        Returns:
+            技能目录路径，如果不存在返回 None
+        """
+        skill = self.skills.get(skill_name)
+        return skill['dir_path'] if skill else None
