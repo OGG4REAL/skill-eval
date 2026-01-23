@@ -8,7 +8,9 @@
  * 2. 不依赖 CopilotKit 的 useCopilotChat hooks
  * 3. 后续如果需要 useCopilotReadable 等功能，再集成 CopilotKit 标准协议
  */
+import { useEffect, useState } from 'react';
 import { ChatLayout } from './copilot';
+import { createSession } from './lib/api';
 import './App.css';
 
 export default function CopilotApp() {
@@ -23,7 +25,24 @@ export default function CopilotApp() {
     return localStorage.getItem('copilot_session_id') || undefined;
   };
 
-  const sessionId = getSessionId();
+  const [sessionId, setSessionId] = useState<string | undefined>(() => getSessionId());
+
+  useEffect(() => {
+    if (sessionId) return;
+    let active = true;
+    createSession()
+      .then((id) => {
+        if (!active) return;
+        localStorage.setItem('copilot_session_id', id);
+        setSessionId(id);
+      })
+      .catch((error) => {
+        console.error('创建会话失败:', error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
 
   return (
     <div className="copilot-app" style={{

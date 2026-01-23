@@ -338,14 +338,6 @@ class CopilotBackend:
                 "content": result.get("response", ""),
                 "iterations": result.get("iterations", 0)
             }).to_sse()
-            
-            # 发送客户端工具调用
-            client_tools = result.get("client_side_tools", [])
-            for tool_call in client_tools:
-                yield SSEEvent("tool_call", {
-                    "name": tool_call.get("tool_name"),
-                    "arguments": tool_call.get("arguments")
-                }).to_sse()
         
         # 发送完成事件
         yield SSEEvent("done", {"session_id": session_id}).to_sse()

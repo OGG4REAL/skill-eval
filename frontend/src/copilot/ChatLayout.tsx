@@ -8,6 +8,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Trash2, FileUp, Loader2 } from 'lucide-react';
 import { ThinkingPanel, MarkdownRenderer } from './components';
 import { ChartAction, TableAction, NotificationAction } from './actions';
+import { listUploads, uploadFiles } from '../lib/api';
+import type { FileInfo } from '../types';
 import type { 
   ChatMessage, 
   ThinkingStep, 
@@ -30,8 +32,11 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [currentThinking, setCurrentThinking] = useState<ThinkingStep[]>([]);
   const [toolCalls, setToolCalls] = useState<SSEToolCallEvent[]>([]);
+  const [uploads, setUploads] = useState<FileInfo[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -42,10 +47,17 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     scrollToBottom();
   }, [messages, currentThinking, scrollToBottom]);
 
+  useEffect(() => {
+    if (!sessionId) return;
+    listUploads(sessionId)
+      .then(setUploads)
+      .catch(() => setUploads([]));
+  }, [sessionId]);
+
   // 发送消息
   const handleSendMessage = async () => {
     const trimmedInput = inputValue.trim();
-    if (!trimmedInput || isLoading) return;
+    if (!trimmedInput || isLoading || !sessionId) return;
 
     // 添加用户消息
     const userMessage: ChatMessage = {
@@ -194,6 +206,20 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     setToolCalls([]);
   };
 
+  const handleUpload = async (files: FileList | null) => {
+    if (!files || !sessionId) return;
+    setIsUploading(true);
+    try {
+      await uploadFiles(sessionId, Array.from(files));
+      const nextUploads = await listUploads(sessionId);
+      setUploads(nextUploads);
+    } catch (error) {
+      console.error('上传失败:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // 渲染工具调用结果
   const renderToolCall = (toolCall: SSEToolCallEvent, index: number) => {
     switch (toolCall.name) {
@@ -235,6 +261,33 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={!sessionId || isUploading}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              background: 'transparent',
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: !sessionId || isUploading ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              opacity: !sessionId || isUploading ? 0.5 : 1,
+            }}
+          >
+            <FileUp size={16} />
+            {isUploading ? '上传中...' : '上传文件'}
+          </button>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            multiple
+            onChange={(e) => handleUpload(e.target.files)}
+            style={{ display: 'none' }}
+          />
+          <button
             onClick={handleClearChat}
             style={{
               display: 'flex',
@@ -254,6 +307,31 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
           </button>
         </div>
       </header>
+
+      {uploads.length > 0 && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '12px 0 0',
+        }}>
+          {uploads.map((file) => (
+            <span
+              key={file.name}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '999px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: 'rgba(255, 255, 255, 0.75)',
+                fontSize: '12px',
+              }}
+            >
+              {file.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* 消息列表 */}
       <div className="messages-container" style={{
@@ -383,8 +461,8 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入您的问题... (Enter 发送, Shift+Enter 换行)"
-            disabled={isLoading}
+            placeholder={sessionId ? "输入您的问题... (Enter 发送, Shift+Enter 换行)" : "会话初始化中，请稍候..."}
+            disabled={isLoading || !sessionId}
             rows={1}
             style={{
               flex: 1,
@@ -403,7 +481,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
           />
           <button
             onClick={handleSendMessage}
-            disabled={isLoading || !inputValue.trim()}
+            disabled={isLoading || !inputValue.trim() || !sessionId}
             style={{
               display: 'flex',
               alignItems: 'center',
