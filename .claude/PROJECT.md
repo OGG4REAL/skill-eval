@@ -29,5 +29,6 @@
  
  ## 待办
 - 引入 Skill 工具与两阶段注入（Phase1 文档已记录）
+- Phase2：精简 system prompt，工具规则下沉到 description
  - 接入 CopilotKit 标准 Runtime（`CopilotKit` Provider + `useCopilotReadable`）
  - 完善图表点击/选择等交互事件的上下文回流

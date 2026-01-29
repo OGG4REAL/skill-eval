@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from agent_system.agent.core import Agent, LogCallback
 from agent_system.skills.manager import SkillManager
 from agent_system.tools import ToolRegistry, register_ui_tools, create_mcp_tools
+from agent_system.tools.skill_tool import SkillTool
 from agent_system.session import ensure_session_dirs
 from agent_system.config import Config
 
@@ -182,6 +183,10 @@ class CopilotBackend:
         
         # 初始化工具注册表
         tool_registry = ToolRegistry()
+        
+        # 注册 Skill 工具（优先级最高，放在最前面）
+        skill_tool = SkillTool(skill_manager)
+        tool_registry.register(skill_tool)
         
         # 注册 UI 工具（客户端工具）
         register_ui_tools(tool_registry)

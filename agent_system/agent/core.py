@@ -56,9 +56,8 @@ class Agent:
         self.conversation_history: List[Dict[str, Any]] = []
         self._load_history()
         
-        # 初始化系统提示词
-        self.skills_summary = skill_manager.get_skills_summary()
-        self.system_prompt = get_system_prompt(self.skills_summary, self._get_files_info())
+        # 初始化系统提示词（Phase2: 技能清单已移至 Skill 工具 description）
+        self.system_prompt = get_system_prompt(self._get_files_info())
         
         # 初始化日志文件
         self._init_log_file()
@@ -174,7 +173,7 @@ class Agent:
                     console.print(f"[yellow]回调执行失败: {e}[/yellow]")
         
         # 实时更新文件信息到系统提示词
-        self.system_prompt = get_system_prompt(self.skills_summary, self._get_files_info())
+        self.system_prompt = get_system_prompt(self._get_files_info())
         
         # 压缩旧的对话历史（保留最近3轮完整，压缩更早的）
         self.conversation_history = self.memory_manager.compress_history(
@@ -294,11 +293,68 @@ class Agent:
                 execution_log.append(f"    参数: {json.dumps(tool_args, ensure_ascii=False, indent=6)}")
                 _emit("tool_call", f"调用工具: {tool_name}")
                 
-                # 获取工具实例，检查是否为客户端工具
+                # 获取工具实例，检查工具类型
                 tool = self.tool_registry.get(tool_name)
                 
-                if tool and getattr(tool, 'client_side', False):
-                    # 客户端工具：跳过执行，创建 ClientSideToolResult
+                # ============================================
+                # Skill 注入工具：四步注入机制
+                # ============================================
+                if tool and getattr(tool, 'skill_injector', False):
+                    # 1. 执行工具，获取 tool 响应
+                    result_str = tool.execute(**tool_args)
+                    
+                    console.print(f"  [cyan]{result_str}[/cyan]")
+                    execution_log.append(f"  {result_str}")
+                    
+                    # 检查是否执行成功（不是 Error 开头）
+                    if result_str.startswith("Error:"):
+                        # 技能不存在，走正常的 tool 响应流程
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call["id"],
+                            "name": tool_name,
+                            "content": result_str
+                        })
+                        self._save_history()
+                        _emit("error", result_str)
+                        continue
+                    
+                    # 2. 添加 tool 响应消息
+                    self.conversation_history.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "name": tool_name,
+                        "content": result_str  # "Launching skill: xxx"
+                    })
+                    
+                    # 3. 添加桥接 assistant 消息（优先空字符串，API 报错再降级）
+                    self.conversation_history.append({
+                        "role": "assistant",
+                        "content": ""  # 降级方案: "." 或 "..."
+                    })
+                    
+                    # 4. 获取并注入 user 消息（技能内容）
+                    injection_content = tool.get_injection_content()
+                    self.conversation_history.append({
+                        "role": "user",
+                        "content": injection_content
+                    })
+                    
+                    # 5. 记录日志
+                    injected_skill = tool._pending_skill
+                    _emit("skill_inject", f"技能 {injected_skill} 已注入")
+                    execution_log.append(f"  技能注入: {injected_skill}")
+                    console.print(f"  [cyan]技能 {injected_skill} 已注入到上下文[/cyan]")
+                    
+                    self._save_history()
+                    
+                    # 跳过后续的通用处理，继续下一个工具调用
+                    continue
+                
+                # ============================================
+                # 客户端工具：跳过后端执行
+                # ============================================
+                elif tool and getattr(tool, 'client_side', False):
                     console.print(f"  [magenta]客户端工具，跳过后端执行[/magenta]")
                     execution_log.append(f"  客户端工具，跳过后端执行")
                     
@@ -319,6 +375,10 @@ class Agent:
                     }, ensure_ascii=False))
                     
                     execution_log.append(f"  客户端工具结果: {result_str}")
+                
+                # ============================================
+                # 普通工具：正常执行
+                # ============================================
                 else:
                     # 普通工具：正常执行
                     try:

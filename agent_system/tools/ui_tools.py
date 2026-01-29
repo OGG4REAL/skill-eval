@@ -23,14 +23,18 @@ class RenderChartTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return """在前端渲染交互式图表。支持多种图表类型（折线图、柱状图、饼图、散点图等）。
+        return """在前端渲染交互式图表（客户端工具，不在后端执行）。
 
 使用场景：
-- 当需要可视化数据分析结果时
-- 当用户请求图表展示时
-- 当数据更适合用图表呈现而非文本时
+- 趋势/时间序列 → line/area
+- 对比/排名 → bar
+- 占比/构成 → pie
+- 多维/相关性 → radar/scatter
 
-注意：此工具在前端执行，Agent 无需等待结果。调用后请继续回复用户。"""
+重要说明：
+- 此工具为客户端渲染，调用后无需等待结果
+- 图表类型必须与数据表达目标一致
+- 禁止使用 matplotlib/seaborn 生成图片，必须使用此工具"""
     
     @property
     def parameters(self) -> Dict:
@@ -133,12 +137,15 @@ class RenderTableTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return """在前端渲染交互式数据表格。
+        return """在前端渲染交互式数据表格（客户端工具，不在后端执行）。
 
 使用场景：
-- 当需要展示结构化数据时
-- 当数据量较大需要分页或筛选时
-- 当用户需要与数据进行交互（排序、筛选）时"""
+- 结构化结果需要完整展示
+- 行数 > 3 或需要排序/筛选
+
+重要说明：
+- 此工具为客户端渲染，调用后无需等待结果
+- 禁止输出原始 ASCII 表格或 JSON dumps"""
     
     @property
     def parameters(self) -> Dict:
@@ -227,7 +234,14 @@ class ShowNotificationTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return """在前端显示通知提示。用于向用户传达重要信息、警告或成功消息。"""
+        return """在前端显示通知提示（客户端工具，不在后端执行）。
+
+使用场景：
+- 成功/警告/错误等重要提醒
+- 需要吸引用户注意的关键信息
+
+重要说明：
+- 此工具为客户端渲染，调用后无需等待结果"""
     
     @property
     def parameters(self) -> Dict:

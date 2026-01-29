@@ -17,7 +17,7 @@ class SkillManager:
     3. 生成技能摘要（用于 system prompt）
     
     不再职责：
-    - 按需加载完整技能文档（现在由 Agent 通过 bash 自己读取）
+    - 直接由 Agent 通过 bash 读取技能文档（改为由 Skill 工具注入）
     - 管理文件列表（Agent 通过 bash ls 自己查看）
     - 缓存完整内容（不需要了）
     """
@@ -117,3 +117,43 @@ class SkillManager:
         """
         skill = self.skills.get(skill_name)
         return skill['dir_path'] if skill else None
+    
+    def get_skills_for_tool_description(self) -> str:
+        """
+        返回 Skill 工具 description 所需的技能清单格式
+        
+        格式：简洁的列表形式，用于 Skill 工具的 description
+        - skill-name-1: description
+        - skill-name-2: description
+        
+        Returns:
+            格式化的技能清单字符串
+        """
+        if not self.skills:
+            return ""
+        
+        lines = []
+        for skill_name, skill_info in self.skills.items():
+            desc = skill_info['metadata'].get('description', 'No description')
+            lines.append(f"- {skill_name}: {desc}")
+        return "\n".join(lines)
+    
+    def get_skill_content(self, skill_name: str) -> str:
+        """
+        读取并返回技能的完整 SKILL.md 内容
+        
+        Args:
+            skill_name: 技能名称
+            
+        Returns:
+            SKILL.md 的完整内容，如果技能不存在返回错误消息
+        """
+        skill = self.skills.get(skill_name)
+        if not skill:
+            return f"Error: Skill '{skill_name}' not found"
+        
+        skill_file = skill['file_path']
+        try:
+            return skill_file.read_text(encoding='utf-8')
+        except Exception as e:
+            return f"Error reading skill file: {e}"

@@ -1,6 +1,6 @@
 """
 LLM 客户端
-封装 DeepSeek API（使用 OpenAI 兼容接口）
+支持 DeepSeek 和 GLM API（使用 OpenAI 兼容接口）
 """
 from openai import OpenAI
 from typing import List, Dict, Optional, Any
@@ -8,15 +8,21 @@ from ..config import Config
 
 
 class LLMClient:
-    """DeepSeek API 客户端封装"""
+    """通用 LLM API 客户端封装"""
     
     def __init__(self):
-        """初始化客户端"""
+        """初始化客户端（根据配置选择提供商）"""
+        llm_config = Config.get_llm_config()
+        
+        self.provider = llm_config["provider"]
+        self.model = llm_config["model"]
+        
         self.client = OpenAI(
-            api_key=Config.DEEPSEEK_API_KEY,
-            base_url=Config.DEEPSEEK_BASE_URL
+            api_key=llm_config["api_key"],
+            base_url=llm_config["base_url"]
         )
-        self.model = Config.DEEPSEEK_MODEL
+        
+        print(f"[LLMClient] 使用 {self.provider.upper()} 模型: {self.model}")
     
     def chat(
         self,
@@ -54,7 +60,7 @@ class LLMClient:
             return self._parse_response(response)
         
         except Exception as e:
-            raise RuntimeError(f"LLM API 调用失败: {e}")
+            raise RuntimeError(f"LLM API 调用失败 ({self.provider}): {e}")
     
     def _parse_response(self, response) -> Dict[str, Any]:
         """
@@ -122,5 +128,4 @@ class LLMClient:
                     yield chunk.choices[0].delta.content
         
         except Exception as e:
-            raise RuntimeError(f"LLM 流式调用失败: {e}")
-
+            raise RuntimeError(f"LLM 流式调用失败 ({self.provider}): {e}")

@@ -304,24 +304,22 @@ class BashTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return """Execute bash commands to explore the filesystem, read files, and run Python scripts.
+        return """执行命令行指令以探索文件系统与运行脚本。
 
-Working directory: /workspace
-Skills directory: /workspace/skills (read-only)
+工作目录：/workspace
+技能目录：/workspace/skills（只读）
 
-Allowed commands: cat, ls, head, tail, grep, find, wc, pwd, file, tree, python, python3
+允许的命令：cat, ls, head, tail, grep, find, wc, pwd, file, tree, python, python3
 
-Examples:
-- bash("cat skills/csv-data-summarizer/SKILL.md")
-- bash("ls -la skills/")
-- bash("head -20 data.csv")
-- bash("grep 'import' skills/csv-data-summarizer/analyze.py")
-- bash("python skills/fin-advisor-math/scripts/finance_formulas.py --type aip --pmt 3000 --rate 0.08 --periods 120")
+重要提示：
+- 技能已通过 Skill 工具注入，无需手动 cat SKILL.md
+- 优先使用技能提供的 CLI 脚本（更快更可靠）
+- 仅在脚本不适用时才用 run_python_code
 
-**IMPORTANT**: 
-- Read SKILL.md to learn skill usage patterns.
-- Prefer running pre-built scripts via CLI when available (faster, more reliable).
-- Use run_python_code only for complex custom logic not covered by scripts.
+示例：
+- bash("ls -la uploads/")
+- bash("head -20 uploads/data.csv")
+- bash("python skills/fin-advisor-math/scripts/finance_formulas.py --type aip --pmt 3000")
 """
     
     @property
@@ -400,19 +398,18 @@ class PythonTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return """Execute Python code in a stateful sandbox (variables persist across calls).
+        return """在有状态沙盒中执行 Python 代码（变量跨调用保留）。
 
-Pre-installed: pandas, numpy, matplotlib, seaborn, openpyxl, python-docx
+预装库：pandas, numpy, matplotlib, seaborn, openpyxl, python-docx
 
-Example workflow:
-  # Call 1: Load data
-  run_python_code("import pandas as pd; df = pd.read_csv('data.csv')")
-  
-  # Call 2: df still exists!
-  run_python_code("print(df.describe())")
-  
-  # Call 3: Generate chart
-  run_python_code("df.plot(); plt.savefig('chart.png')")
+重要提示：
+- 适合复杂数据处理与自定义计算
+- 优先使用已有脚本/技能指令中的推荐方式
+- 需要产出文件时，将文件保存到 /workspace/output/ 目录
+
+使用建议：
+- 尽量写完整逻辑，减少拆分调用
+- 变量跨调用保留，无需重复导入和加载数据
 """
     
     @property

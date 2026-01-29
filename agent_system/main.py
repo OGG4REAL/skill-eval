@@ -12,6 +12,7 @@ from .config import Config
 from .skills.manager import SkillManager
 from .tools.base import ToolRegistry
 from .tools.mcp_tools import MCPClient, BashTool, PythonTool
+from .tools.skill_tool import SkillTool
 from .tools.ui_tools import register_ui_tools
 from .agent.core import Agent
 from .session import derive_session_id, ensure_session_dirs
@@ -29,8 +30,8 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
     初始化 Agent 系统
     
     架构：
-    1. SkillManager 负责提供元数据（给 system prompt）
-    2. Agent 通过 bash 工具（MCP）读取 SKILL.md 和相关文件
+    1. SkillManager 负责提供元数据（给 system prompt / Skill 工具）
+    2. Skill 工具负责注入 SKILL.md（以 user 消息注入）
     3. Agent 通过 run_python_code 工具（MCP）执行代码
     4. 所有工具在 Docker 容器内执行，共享有状态的 Python 环境
     
@@ -100,6 +101,11 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
     tool_registry.register(python_tool)
     console.print(f"  [green]✓[/green] {python_tool.name:20s} - Python 执行（有状态 REPL）")
     
+    # Skill 工具（技能加载与注入）
+    skill_tool = SkillTool(skill_manager)
+    tool_registry.register(skill_tool)
+    console.print(f"  [green]✓[/green] {skill_tool.name:20s} - 技能加载与注入")
+    
     # UI 工具（客户端执行）
     console.print("\n[cyan]注册 UI 工具（客户端执行）:[/cyan]")
     register_ui_tools(tool_registry)
@@ -133,7 +139,7 @@ def display_welcome():
 
 **核心特性**:
 - 通过 bash 自由探索文件系统
-- 自主学习技能文档和参考代码
+- Skill 工具注入技能文档（减少轮次）
 - 有状态的 Python 执行环境（变量跨调用保留）
 - 本地 Docker 沙箱（无需云服务）
 
