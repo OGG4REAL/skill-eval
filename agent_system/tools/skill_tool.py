@@ -12,9 +12,9 @@ SKILL_TOOL_DESCRIPTION_TEMPLATE = """Load a specialized skill to handle the user
 Skills provide domain-specific knowledge, workflows, and best practices. When a user's request matches a skill's domain, you MUST load that skill first to get detailed instructions.
 
 CRITICAL RULES:
-1. Check "Available skills" below BEFORE using bash or run_python_code
+1. Check "Available skills" below BEFORE using Bash, Read, Write, or List tools
 2. If the task matches a skill's description, call this tool IMMEDIATELY as your FIRST action
-3. NEVER skip this tool and directly use bash/python when a matching skill exists
+3. NEVER skip this tool and directly write code when a matching skill exists
 4. After loading a skill, follow its instructions precisely
 
 Examples:

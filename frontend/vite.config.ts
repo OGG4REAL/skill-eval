@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true, // 允许内网访问
     proxy: {
       // CopilotKit API 代理
       '/copilotkit': {

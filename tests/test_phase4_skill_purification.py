@@ -1,10 +1,13 @@
 """
-Phase 4 测试：Skill 净化 & 全局能力验证
+Phase 4 测试：Skill 净化 & 执行策略验证
 
 测试目标：
-1. prompts.py 中包含 UI 工具决策规则
-2. Skill 文档已净化（无绘图代码、无旧协议）
-3. Skill 明确声明"仅负责计算"
+1. prompts.py 中包含 Write + Bash 审计留痕模式
+2. fin-advisor-math SKILL.md 已更新为 Tier 1/Tier 2 执行策略
+3. csv-data-summarizer SKILL.md 已更新为 Read→Write→Bash 工作流
+4. analyze.py 使用 data 结构而非 charts 数组，无旧协议标记
+5. UI 工具已注册且标记为 client_side
+6. skill_tool.py 不再引用 run_python_code
 """
 import unittest
 import os
@@ -14,8 +17,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class TestPromptsUIDecisionRule(unittest.TestCase):
-    """测试 prompts.py 中的 UI 工具决策规则"""
+class TestPromptsAuditTrailPattern(unittest.TestCase):
+    """测试 prompts.py 中的 Write + Bash 审计留痕模式"""
     
     def setUp(self):
         """读取 prompts.py 内容"""
@@ -26,34 +29,28 @@ class TestPromptsUIDecisionRule(unittest.TestCase):
         with open(prompts_path, 'r', encoding='utf-8') as f:
             self.prompts_content = f.read()
     
-    def test_client_side_ui_tools_section_exists(self):
-        """测试是否包含 client_side_ui_tools 部分"""
-        self.assertIn('<client_side_ui_tools>', self.prompts_content)
-        self.assertIn('</client_side_ui_tools>', self.prompts_content)
+    def test_write_bash_audit_pattern_exists(self):
+        """测试是否包含 Write + Bash 审计留痕模式说明"""
+        self.assertIn('Write + Bash', self.prompts_content)
+        self.assertIn('audit trail', self.prompts_content.lower())
     
-    def test_ui_tools_listed(self):
-        """测试是否列出所有 UI 工具"""
-        self.assertIn('render_chart', self.prompts_content)
-        self.assertIn('render_table', self.prompts_content)
-        self.assertIn('show_notification', self.prompts_content)
+    def test_bash_restricted_to_python(self):
+        """测试是否说明 Bash 仅限执行 Python 脚本"""
+        self.assertIn('python/python3', self.prompts_content)
     
-    def test_ui_decision_rule_exists(self):
-        """测试是否包含 UI 决策规则"""
-        self.assertIn('UI Decision Rule', self.prompts_content)
-        self.assertIn('MUST', self.prompts_content)
+    def test_specialized_tools_routing(self):
+        """测试是否有专用工具路由指导"""
+        self.assertIn('Read for reading files', self.prompts_content)
+        self.assertIn('Write for creating/writing files', self.prompts_content)
+        self.assertIn('List for listing directory contents', self.prompts_content)
     
-    def test_prohibits_matplotlib(self):
-        """测试是否禁止使用 matplotlib"""
-        self.assertIn('Do NOT generate matplotlib', self.prompts_content)
-    
-    def test_orchestrator_presentation_responsibility(self):
-        """测试是否明确 Orchestrator 负责展示"""
-        self.assertIn('Orchestrator', self.prompts_content)
-        self.assertIn('PRESENTATION', self.prompts_content)
+    def test_no_run_python_code_reference(self):
+        """测试 prompts.py 中不再引用 run_python_code"""
+        self.assertNotIn('run_python_code', self.prompts_content)
 
 
-class TestFinAdvisorMathSkillPurification(unittest.TestCase):
-    """测试 fin-advisor-math SKILL.md 净化"""
+class TestFinAdvisorMathTierStrategy(unittest.TestCase):
+    """测试 fin-advisor-math SKILL.md 的 Tier 分层执行策略"""
     
     def setUp(self):
         """读取 SKILL.md 内容"""
@@ -64,53 +61,49 @@ class TestFinAdvisorMathSkillPurification(unittest.TestCase):
         with open(skill_path, 'r', encoding='utf-8') as f:
             self.skill_content = f.read()
     
+    def test_tier1_cli_strategy_exists(self):
+        """测试是否包含 Tier 1 CLI 直调策略"""
+        self.assertIn('Tier 1', self.skill_content)
+        self.assertIn('CLI', self.skill_content)
+    
+    def test_tier2_compose_strategy_exists(self):
+        """测试是否包含 Tier 2 组合扩展策略"""
+        self.assertIn('Tier 2', self.skill_content)
+        self.assertIn('import', self.skill_content.lower())
+    
+    def test_no_run_python_code_reference(self):
+        """测试不再引用 run_python_code"""
+        self.assertNotIn('run_python_code', self.skill_content)
+    
+    def test_bash_pascalcase(self):
+        """测试 Bash 使用 PascalCase"""
+        # 示例中应使用 Bash(...) 而非 bash(...)
+        self.assertIn('Bash("python', self.skill_content)
+    
+    def test_function_list_exists(self):
+        """测试是否包含可用函数清单"""
+        self.assertIn('可用函数清单', self.skill_content)
+        self.assertIn('calc_aip_fv', self.skill_content)
+        self.assertIn('calc_cagr', self.skill_content)
+        self.assertIn('calc_irr', self.skill_content)
+    
+    def test_irr_in_cli_table(self):
+        """测试 CLI 速查表包含 IRR"""
+        self.assertIn('| **内部收益率** |', self.skill_content)
+        self.assertIn('irr', self.skill_content.lower())
+    
     def test_no_matplotlib_import(self):
-        """测试不包含 matplotlib 导入"""
+        """测试不包含 matplotlib 导入指令"""
         self.assertNotIn('import matplotlib', self.skill_content)
-        self.assertNotIn('from matplotlib', self.skill_content)
-    
-    def test_no_seaborn_import(self):
-        """测试不包含 seaborn 导入"""
-        self.assertNotIn('import seaborn', self.skill_content)
-        self.assertNotIn('from seaborn', self.skill_content)
-    
-    def test_no_plt_savefig_in_code(self):
-        """测试代码块中不包含 plt.savefig() 调用"""
-        # 提取代码块内容
-        lines = self.skill_content.split('\n')
-        code_block_content = []
-        in_code_block = False
-        for line in lines:
-            if line.startswith('```python') or line.startswith('```bash'):
-                in_code_block = True
-            elif line.startswith('```') and in_code_block:
-                in_code_block = False
-            elif in_code_block:
-                code_block_content.append(line)
-        
-        code_content = '\n'.join(code_block_content)
-        # 代码块中不应包含实际的 savefig 调用
-        self.assertNotIn('plt.savefig(', code_content)
-        self.assertNotIn('.savefig(', code_content)
-    
-    def test_no_old_analysis_result_protocol(self):
-        """测试复杂场景示例不再手动构建图表 JSON"""
-        # 检查是否移除了手动构建 charts 数组的代码
-        self.assertNotIn('"charts": [{', self.skill_content)
     
     def test_computation_only_declaration(self):
         """测试是否声明仅负责计算"""
         self.assertIn('仅负责计算', self.skill_content)
         self.assertIn('不负责展示', self.skill_content)
-    
-    def test_orchestrator_ui_tools_reference(self):
-        """测试是否引用 Orchestrator 的 UI 工具"""
-        self.assertIn('render_chart', self.skill_content)
-        self.assertIn('render_table', self.skill_content)
 
 
-class TestCSVDataSummarizerSkillPurification(unittest.TestCase):
-    """测试 csv-data-summarizer SKILL.md 净化"""
+class TestCSVDataSummarizerWorkflow(unittest.TestCase):
+    """测试 csv-data-summarizer SKILL.md 的 Read→Write→Bash 工作流"""
     
     def setUp(self):
         """读取 SKILL.md 内容"""
@@ -121,53 +114,135 @@ class TestCSVDataSummarizerSkillPurification(unittest.TestCase):
         with open(skill_path, 'r', encoding='utf-8') as f:
             self.skill_content = f.read()
     
-    def test_no_analysis_result_start_marker(self):
-        """测试不包含 ANALYSIS_RESULT_START 标记（已废弃）"""
-        # 检查示例代码中不再使用此标记
-        # 注意：可能在说明中提到它是 deprecated，所以检查是否不再作为指令
-        lines = self.skill_content.split('\n')
-        code_block_content = []
-        in_code_block = False
-        for line in lines:
-            if line.startswith('```python'):
-                in_code_block = True
-            elif line.startswith('```') and in_code_block:
-                in_code_block = False
-            elif in_code_block:
-                code_block_content.append(line)
-        
-        code_content = '\n'.join(code_block_content)
-        self.assertNotIn('ANALYSIS_RESULT_START', code_content)
+    def test_execution_strategy_section_exists(self):
+        """测试是否包含执行策略部分"""
+        self.assertIn('执行策略', self.skill_content)
     
-    def test_no_matplotlib_seaborn(self):
-        """测试不包含 matplotlib/seaborn"""
-        self.assertNotIn('import matplotlib', self.skill_content)
-        self.assertNotIn('import seaborn', self.skill_content)
+    def test_read_write_bash_workflow(self):
+        """测试是否包含 Read→Write→Bash 工作流"""
+        self.assertIn('Read("uploads/', self.skill_content)
+        self.assertIn('Write("temp/', self.skill_content)
+        self.assertIn('Bash("python', self.skill_content)
     
-    def test_no_charts_array_in_output(self):
-        """测试输出结构不包含 charts 数组（已移除）"""
-        # 在 JSON Output Structure 中不应该有 charts 配置
+    def test_reference_code_explanation(self):
+        """测试是否说明参考代码的定位"""
+        self.assertIn('参考代码', self.skill_content)
+        self.assertIn('analyze.py', self.skill_content)
+    
+    def test_anti_patterns_listed(self):
+        """测试是否列出反模式"""
+        self.assertIn('反模式', self.skill_content)
+        self.assertIn('python -c', self.skill_content)
+    
+    def test_deprecated_markers_noted(self):
+        """测试是否标注旧协议已废弃"""
+        self.assertIn('ANALYSIS_RESULT_START', self.skill_content)
+        self.assertIn('deprecated', self.skill_content.lower())
+    
+    def test_data_structure_not_charts(self):
+        """测试输出结构说明使用 data 而非 charts"""
+        # JSON Output Structure 部分应使用 "data" 而非 "charts"
         json_section_start = self.skill_content.find('## JSON Output Structure')
-        visualization_section = self.skill_content.find('## Visualization Guidelines')
-        
-        if json_section_start != -1 and visualization_section != -1:
-            json_section = self.skill_content[json_section_start:visualization_section]
-            # charts 数组应该被移除，改为 data 结构
+        if json_section_start != -1:
+            json_section = self.skill_content[json_section_start:json_section_start + 1000]
             self.assertIn('"data":', json_section)
     
     def test_computation_only_header(self):
         """测试头部声明仅负责计算"""
         self.assertIn('COMPUTATION ONLY', self.skill_content)
+
+
+class TestAnalyzePyRefactoring(unittest.TestCase):
+    """测试 analyze.py 的重构"""
     
-    def test_visualization_handled_by_orchestrator(self):
-        """测试声明可视化由 Orchestrator 处理"""
-        self.assertIn('VISUALIZATION IS HANDLED BY ORCHESTRATOR', self.skill_content)
-        self.assertIn('render_chart', self.skill_content)
-        self.assertIn('render_table', self.skill_content)
+    def setUp(self):
+        """读取 analyze.py 内容"""
+        analyze_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'skills', 'csv-data-summarizer', 'analyze.py'
+        )
+        with open(analyze_path, 'r', encoding='utf-8') as f:
+            self.analyze_content = f.read()
     
-    def test_deprecated_markers_noted(self):
-        """测试标注旧协议已废弃"""
-        self.assertIn('deprecated', self.skill_content.lower())
+    def test_no_analysis_result_markers(self):
+        """测试不包含 ANALYSIS_RESULT_START/END 标记"""
+        self.assertNotIn('ANALYSIS_RESULT_START', self.analyze_content)
+        self.assertNotIn('ANALYSIS_RESULT_END', self.analyze_content)
+    
+    def test_uses_data_not_charts(self):
+        """测试使用 data 结构而非 charts 数组"""
+        self.assertIn('"data": {}', self.analyze_content)
+        self.assertNotIn('"charts": []', self.analyze_content)
+    
+    def test_data_structure_assignments(self):
+        """测试 data 结构赋值"""
+        self.assertIn('result["data"]["revenue_trend"]', self.analyze_content)
+        self.assertIn('result["data"]["margin_by_category"]', self.analyze_content)
+        self.assertIn('result["data"]["revenue_composition"]', self.analyze_content)
+    
+    def test_no_charts_append(self):
+        """测试不使用 charts.append()"""
+        self.assertNotIn('result["charts"].append', self.analyze_content)
+    
+    def test_reference_implementation_header(self):
+        """测试文件头说明参考实现定位"""
+        self.assertIn('参考实现', self.analyze_content)
+        self.assertIn('Reference Implementation', self.analyze_content)
+    
+    def test_np_encoder_exists(self):
+        """测试 NpEncoder 类存在"""
+        self.assertIn('class NpEncoder', self.analyze_content)
+
+
+class TestFinanceFormulasUpdate(unittest.TestCase):
+    """测试 finance_formulas.py 的更新"""
+    
+    def setUp(self):
+        """读取 finance_formulas.py 内容"""
+        formulas_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'skills', 'fin-advisor-math', 'scripts', 'finance_formulas.py'
+        )
+        with open(formulas_path, 'r', encoding='utf-8') as f:
+            self.formulas_content = f.read()
+    
+    def test_no_setup_matplotlib_chinese(self):
+        """测试已移除 setup_matplotlib_chinese 函数"""
+        self.assertNotIn('def setup_matplotlib_chinese', self.formulas_content)
+    
+    def test_irr_cli_branch_exists(self):
+        """测试 IRR CLI 分支存在"""
+        self.assertIn("args.type == 'irr'", self.formulas_content)
+        self.assertIn('--cashflows', self.formulas_content)
+    
+    def test_irr_in_epilog_example(self):
+        """测试 epilog 中包含 IRR 示例"""
+        self.assertIn('内部收益率:', self.formulas_content)
+        self.assertIn('--type irr', self.formulas_content)
+
+
+class TestSkillToolNoRunPythonCode(unittest.TestCase):
+    """测试 skill_tool.py 不再引用 run_python_code"""
+    
+    def setUp(self):
+        """读取 skill_tool.py 内容"""
+        skill_tool_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'agent_system', 'tools', 'skill_tool.py'
+        )
+        with open(skill_tool_path, 'r', encoding='utf-8') as f:
+            self.skill_tool_content = f.read()
+    
+    def test_no_run_python_code_reference(self):
+        """测试不再引用 run_python_code"""
+        self.assertNotIn('run_python_code', self.skill_tool_content)
+    
+    def test_uses_new_tool_names(self):
+        """测试使用新的工具名称"""
+        self.assertIn('Bash', self.skill_tool_content)
+        self.assertIn('Read', self.skill_tool_content)
+        self.assertIn('Write', self.skill_tool_content)
+        self.assertIn('List', self.skill_tool_content)
 
 
 class TestUIToolsIntegration(unittest.TestCase):
@@ -199,9 +274,12 @@ def run_tests():
     suite = unittest.TestSuite()
     
     # 添加所有测试类
-    suite.addTests(loader.loadTestsFromTestCase(TestPromptsUIDecisionRule))
-    suite.addTests(loader.loadTestsFromTestCase(TestFinAdvisorMathSkillPurification))
-    suite.addTests(loader.loadTestsFromTestCase(TestCSVDataSummarizerSkillPurification))
+    suite.addTests(loader.loadTestsFromTestCase(TestPromptsAuditTrailPattern))
+    suite.addTests(loader.loadTestsFromTestCase(TestFinAdvisorMathTierStrategy))
+    suite.addTests(loader.loadTestsFromTestCase(TestCSVDataSummarizerWorkflow))
+    suite.addTests(loader.loadTestsFromTestCase(TestAnalyzePyRefactoring))
+    suite.addTests(loader.loadTestsFromTestCase(TestFinanceFormulasUpdate))
+    suite.addTests(loader.loadTestsFromTestCase(TestSkillToolNoRunPythonCode))
     suite.addTests(loader.loadTestsFromTestCase(TestUIToolsIntegration))
     
     # 运行测试

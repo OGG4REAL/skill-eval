@@ -14,7 +14,7 @@ import traceback
 from datetime import datetime
 from queue import Queue, Empty
 from threading import Thread, Lock
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,10 +25,87 @@ from pydantic import BaseModel
 
 from agent_system.agent.core import Agent, LogCallback
 from agent_system.skills.manager import SkillManager
-from agent_system.tools import ToolRegistry, register_ui_tools, create_mcp_tools
+from agent_system.tools import ToolRegistry, register_ui_tools, create_mcp_tools, MCPClient
 from agent_system.tools.skill_tool import SkillTool
 from agent_system.session import ensure_session_dirs
 from agent_system.config import Config
+
+
+# ============================================================================
+# CleanupTTLCache - 支持过期回调的 TTL 缓存
+# ============================================================================
+
+class CleanupTTLCache(TTLCache):
+    """
+    支持过期回调的 TTL 缓存。
+    
+    在条目被移除时（TTL 过期驱逐、容量驱逐或手动删除）触发 on_expire 回调。
+    回调签名：on_expire(key: str, value: Any) -> None
+    
+    实现细节：
+    - 使用 _value_store 字典在 __setitem__ 时保存 key -> value 映射
+    - 在 __delitem__ 中从 _value_store 获取 value（解决 TTL 过期时 self.get() 返回 None 的问题）
+    - 重写 expire() 方法，通过 __delitem__ 清理过期项（cachetools 6.x 的 expire() 不走 __delitem__）
+    - 回调在删除之后执行，确保即使回调抛异常，缓存条目也已被正确移除
+    
+    警告：
+    - on_expire 回调可能在持有外部锁的情况下被调用（如 CopilotBackend._cache_lock）
+    - 回调中绝对不能获取相同的锁，否则会死锁
+    """
+
+    def __init__(self, maxsize, ttl, on_expire=None):
+        super().__init__(maxsize, ttl)
+        self._on_expire = on_expire
+        self._value_store: Dict[Any, Any] = {}  # 独立存储 key -> value 映射
+
+    def __setitem__(self, key, value):
+        # 先保存到独立映射表
+        self._value_store[key] = value
+        # 再调用父类 __setitem__（可能触发容量驱逐，驱逐时 _value_store 已有新值）
+        super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        # 从独立映射表获取 value（解决 TTL 过期时 self.get() 返回 None 的问题）
+        value = self._value_store.pop(key, None)
+        
+        # 执行实际删除
+        super().__delitem__(key)
+        
+        # 删除成功后触发回调
+        if self._on_expire and value is not None:
+            try:
+                self._on_expire(key, value)
+            except Exception as e:
+                print(f"[CleanupTTLCache] Cleanup error for {key}: {e}")
+
+    def expire(self, time=None):
+        """
+        清理过期条目（重写以确保触发回调）。
+        
+        cachetools 6.x 的 expire() 不经过 __delitem__，而且任何对缓存的访问
+        （包括 keys()、len()、__iter__）都会触发过期检查。
+        
+        解决方案：比较 _value_store 和实际缓存，找出被清理的 key。
+        """
+        # 先获取 _value_store 中所有 key 的副本（不触发过期检查）
+        stored_keys = set(self._value_store.keys())
+        
+        # 调用父类 expire() 清理过期条目
+        super().expire(time)
+        
+        # 比较 _value_store 和实际缓存，找出被清理的 key
+        # 注意：这里使用 super().__contains__ 绕过可能的过期检查
+        # 实际上直接用 TTLCache 的 __contains__ 即可，因为 expire() 已经清理完了
+        for key in stored_keys:
+            # 检查 key 是否还在缓存中（使用父类的 __contains__ 避免无限递归）
+            if key not in self:
+                # key 已被清理，触发回调
+                value = self._value_store.pop(key, None)
+                if self._on_expire and value is not None:
+                    try:
+                        self._on_expire(key, value)
+                    except Exception as e:
+                        print(f"[CleanupTTLCache] Cleanup error for {key}: {e}")
 
 
 # ============================================================================
@@ -61,6 +138,7 @@ class AgentCacheEntry:
     """Agent 缓存条目"""
     agent: Agent
     session_id: str
+    mcp_client: Optional[MCPClient] = None  # Phase 3: 显式持有 MCPClient 引用
     created_at: float = field(default_factory=time.time)
     last_access: float = field(default_factory=time.time)
     
@@ -99,7 +177,8 @@ class CopilotBackend:
         self,
         max_agents: int = 100,
         ttl_seconds: int = 1800,  # 30 分钟无活动自动释放
-        default_timeout: float = 600.0  # 600 秒硬超时（10分钟，适应复杂任务）
+        default_timeout: float = 600.0,  # 600 秒硬超时（10分钟，适应复杂任务）
+        cleanup_interval: int = 60  # Phase 3: 过期检查间隔（秒）
     ):
         """
         初始化 CopilotBackend
@@ -108,15 +187,17 @@ class CopilotBackend:
             max_agents: 最大缓存 Agent 数量
             ttl_seconds: Agent 缓存过期时间（秒）
             default_timeout: 默认请求超时时间（秒）
+            cleanup_interval: 后台清理线程检查间隔（秒）
         """
         self.max_agents = max_agents
         self.ttl_seconds = ttl_seconds
         self.default_timeout = default_timeout
         
-        # Agent 缓存（使用 TTLCache 自动过期）
-        self._agent_cache: TTLCache[str, AgentCacheEntry] = TTLCache(
+        # Agent 缓存（Phase 3: 使用 CleanupTTLCache，过期时自动清理容器）
+        self._agent_cache: CleanupTTLCache = CleanupTTLCache(
             maxsize=max_agents,
-            ttl=ttl_seconds
+            ttl=ttl_seconds,
+            on_expire=self._cleanup_agent
         )
         self._cache_lock = Lock()
         
@@ -128,6 +209,60 @@ class CopilotBackend:
             "cache_misses": 0,
             "errors": 0
         }
+        
+        # Phase 3: 启动后台定时清理线程（解决 TTLCache 懒惰驱逐问题）
+        self._start_cleanup_timer(cleanup_interval)
+
+    def _start_cleanup_timer(self, interval: int):
+        """
+        启动后台定时清理线程。
+        
+        TTLCache 是懒惰驱逐——仅在访问时触发过期检查。
+        此定时器定期调用 expire() 主动清理过期条目，确保容器及时释放。
+        
+        Args:
+            interval: 检查间隔（秒），默认 60
+        """
+        def _periodic_expire():
+            while True:
+                time.sleep(interval)
+                try:
+                    with self._cache_lock:
+                        # expire() 触发 TTLCache 内部的过期检查
+                        # 过期条目会触发 _cleanup_agent 回调
+                        self._agent_cache.expire()
+                except Exception as e:
+                    print(f"[CopilotBackend] Periodic cleanup error: {e}")
+        
+        t = Thread(target=_periodic_expire, daemon=True, name="cache-cleanup")
+        t.start()
+
+    def _cleanup_agent(self, session_id: str, entry: AgentCacheEntry):
+        """
+        Agent 过期时清理资源（由 CleanupTTLCache 触发）。
+        
+        ⚠️ 此方法在 _cache_lock 内执行，绝对不能再获取 _cache_lock，否则死锁！
+        """
+        print(f"[CopilotBackend] Cleaning up session: {session_id}")
+        
+        # 1. 清理 MCP 客户端（停止 Docker 容器）— 必须先停容器再删文件
+        if entry.mcp_client:
+            try:
+                entry.mcp_client.cleanup()
+                print(f"[CopilotBackend] MCP container stopped for {session_id}")
+            except Exception as e:
+                print(f"[CopilotBackend] MCP cleanup error for {session_id}: {e}")
+        
+        # 2. 清理临时文件（容器已停止，不会有文件锁冲突）
+        self._cleanup_temp_files(session_id)
+
+    def _cleanup_temp_files(self, session_id: str):
+        """清理会话的临时脚本文件（审计留痕目录）"""
+        import shutil
+        temp_dir = Config.SESSIONS_ROOT / session_id / "temp"
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            print(f"[CopilotBackend] Cleaned temp files for {session_id}")
         
     def _get_or_create_agent(self, session_id: str) -> Agent:
         """
@@ -149,23 +284,26 @@ class CopilotBackend:
             self._stats["cache_misses"] += 1
         
         # 创建新的 Agent 实例（在锁外执行，避免阻塞）
-        agent = self._create_agent(session_id)
+        agent, mcp_client = self._create_agent(session_id)
         
         with self._cache_lock:
             # 双重检查
             if session_id not in self._agent_cache:
                 self._agent_cache[session_id] = AgentCacheEntry(
                     agent=agent,
-                    session_id=session_id
+                    session_id=session_id,
+                    mcp_client=mcp_client,  # Phase 3: 保存 MCPClient 引用
                 )
                 self._stats["active_sessions"] = len(self._agent_cache)
             else:
-                # 另一个线程已经创建了，使用已有的
+                # 另一个线程已创建，清理本次多余的 mcp_client
+                if mcp_client:
+                    mcp_client.cleanup()
                 agent = self._agent_cache[session_id].agent
         
         return agent
     
-    def _create_agent(self, session_id: str) -> Agent:
+    def _create_agent(self, session_id: str) -> Tuple[Agent, MCPClient]:
         """
         创建新的 Agent 实例
         
@@ -173,7 +311,7 @@ class CopilotBackend:
             session_id: 会话 ID
             
         Returns:
-            新的 Agent 实例
+            (agent, mcp_client) 元组
         """
         # 确保会话目录存在
         base_dir, uploads_dir, output_dir, log_file = ensure_session_dirs(session_id)
@@ -191,10 +329,9 @@ class CopilotBackend:
         # 注册 UI 工具（客户端工具）
         register_ui_tools(tool_registry)
         
-        # 注册 MCP 工具（bash, run_python_code）
-        mcp_tools = create_mcp_tools(
+        # 注册 MCP 工具（Bash, Read, Write, List）
+        mcp_tools, mcp_client = create_mcp_tools(
             uploads_dir=str(uploads_dir),
-            output_dir=str(output_dir)
         )
         for tool in mcp_tools:
             tool_registry.register(tool)
@@ -207,7 +344,7 @@ class CopilotBackend:
             uploads_dir=str(uploads_dir)
         )
         
-        return agent
+        return agent, mcp_client
     
     async def chat_stream(
         self,

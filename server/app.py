@@ -25,13 +25,8 @@ copilot_router = create_copilot_router(get_copilot_backend())
 app.include_router(copilot_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:4173",
-        "http://127.0.0.1:4173",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # 允许所有来源（开发环境）
+    allow_credentials=False,  # 使用通配符时不能开启 credentials
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,11 +1,38 @@
+"""
+CSV 数据分析参考实现 (Reference Implementation)
+
+本脚本是 csv-data-summarizer skill 的参考代码，供 Agent Read 后学习分析模式。
+主要演示以下最佳实践：
+- NpEncoder：处理 numpy 类型的 JSON 序列化
+- 金融列检测：通过关键词匹配识别 Revenue/Profit/Margin 等列
+- 加权比率计算：total_profit / total_revenue 而非 df['margin'].mean()
+- pandas 惯用法：groupby、agg、sort_values 等数据处理模式
+
+输出格式：
+- summary: 数据概览（行数、列数、是否金融数据）
+- insights: 分析发现（类型、指标、变化）
+- data: 结构化数据（供 Orchestrator 决策可视化方式）
+
+注意：本脚本输出纯数据结构，不包含图表配置。可视化由前端 ECharts 负责。
+"""
 import pandas as pd
 import json
 import numpy as np
 
+
+class NpEncoder(json.JSONEncoder):
+    """处理 numpy 类型的 JSON 序列化"""
+    def default(self, obj):
+        if isinstance(obj, np.integer): return int(obj)
+        if isinstance(obj, np.floating): return float(obj)
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        return super(NpEncoder, self).default(obj)
+
+
 def analyze_csv_pro(file_path):
     """
     Refactored Analysis Engine: General + Financial Enhanced Mode.
-    Follows Weighted Ratio rules and strict ECharts formatting.
+    Follows Weighted Ratio rules and outputs structured data.
     """
     try:
         df = pd.read_csv(file_path)
@@ -16,7 +43,7 @@ def analyze_csv_pro(file_path):
     result = {
         "summary": {"rows": int(df.shape[0]), "cols": int(df.shape[1])},
         "insights": [],
-        "charts": []
+        "data": {}
     }
 
     # --- 1. Domain Detection ---
@@ -53,8 +80,9 @@ def analyze_csv_pro(file_path):
     # Example: Periodicity & Trend (Grouping by Year/Month)
     month_col = next((c for c in df.columns if 'month' in c.lower()), None)
     year_col = next((c for c in df.columns if 'year' in c.lower()), None)
+    rev_col = next((c for c in df.columns if 'revenue' in c.lower() or 'sales' in c.lower()), None)
     
-    if month_col and year_col and is_financial:
+    if month_col and year_col and is_financial and rev_col:
         month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         df['_sort'] = df[month_col].apply(lambda x: month_order.index(x) if x in month_order else 99)
         trend_df = df.sort_values([year_col, '_sort'])
@@ -63,54 +91,46 @@ def analyze_csv_pro(file_path):
         periodic_rev = trend_df.groupby([year_col, month_col, '_sort'])[rev_col].sum().reset_index().sort_values([year_col, '_sort'])
         
         labels = [f"{row[month_col]} {int(row[year_col])}" for _, row in periodic_rev.iterrows()]
+        values = periodic_rev[rev_col].tolist()
         
-        result["charts"].append({
-            "type": "line",
-            "title": "Consolidated Revenue Trend",
-            "xAxis": {"categories": labels, "label": "Period"},
-            "yAxis": {"label": "Total Revenue"},
-            "series": [{"name": "Revenue", "data": periodic_rev[rev_col].tolist()}]
-        })
+        # 输出纯数据结构（不含图表配置）
+        result["data"]["revenue_trend"] = {
+            "labels": labels,
+            "values": values
+        }
 
-    # Example: Multi-Series Bar (Margins by Category)
+    # Example: Margins by Category (Weighted)
     cat_col = next((c for c in df.columns if 'product' in c.lower() or 'category' in c.lower()), None)
+    profit_col = next((c for c in df.columns if 'gross_profit' in c.lower() or 'profit' in c.lower()), None)
+    
     if cat_col and is_financial and rev_col and profit_col:
         grouped = df.groupby(cat_col).agg({rev_col: 'sum', profit_col: 'sum'})
         grouped['margin'] = (grouped[profit_col] / grouped[rev_col] * 100).round(2)
         
-        result["charts"].append({
-            "type": "bar",
-            "title": "Weighted Margin by Category (%)",
-            "xAxis": {"categories": grouped.index.tolist(), "label": cat_col},
-            "yAxis": {"label": "Margin %"},
-            "series": [{"name": "Weighted Margin", "data": grouped['margin'].tolist()}]
-        })
+        # 输出纯数据结构
+        result["data"]["margin_by_category"] = {
+            "categories": grouped.index.tolist(),
+            "margins": grouped['margin'].tolist()
+        }
 
-    # Example: Pie Chart (Composition)
+    # Example: Revenue Composition
     if cat_col and rev_col:
         composition = df.groupby(cat_col)[rev_col].sum()
-        result["charts"].append({
-            "type": "pie",
-            "title": f"{rev_col} Share by {cat_col}",
-            "series": [{
-                "name": "Revenue Share",
-                "data": [{"name": k, "value": v} for k, v in composition.items()]
-            }]
-        })
+        
+        # 输出纯数据结构
+        result["data"]["revenue_composition"] = {
+            name: float(value) for name, value in composition.items()
+        }
 
     # --- 3. JSON Output ---
-    class NpEncoder(json.JSONEncoder):
-        def default(self, obj):
-            if isinstance(obj, np.integer): return int(obj)
-            if isinstance(obj, np.floating): return float(obj)
-            if isinstance(obj, np.ndarray): return obj.tolist()
-            return super(NpEncoder, self).default(obj)
-
-    print("ANALYSIS_RESULT_START")
     print(json.dumps(result, cls=NpEncoder, ensure_ascii=False, indent=2))
-    print("ANALYSIS_RESULT_END")
+
 
 if __name__ == "__main__":
+    # 本脚本主要作为参考实现供 Agent 学习分析模式，
+    # 也可直接执行进行快速概览：python analyze.py <csv_path>
     import sys
     if len(sys.argv) > 1:
         analyze_csv_pro(sys.argv[1])
+    else:
+        print(json.dumps({"error": "Usage: python analyze.py <csv_file_path>"}))

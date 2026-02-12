@@ -192,46 +192,6 @@ def calc_irr(cash_flows):
 
 
 # ============================================================================
-# 图表配置（中文字体支持）
-# ============================================================================
-
-def setup_matplotlib_chinese():
-    """
-    配置 matplotlib 支持中文显示
-    自动检测可用的中文字体
-    """
-    import matplotlib.pyplot as plt
-    import matplotlib
-    
-    # 尝试的中文字体列表（按优先级）
-    chinese_fonts = [
-        'Noto Sans CJK SC',
-        'WenQuanYi Zen Hei',
-        'SimHei',
-        'Microsoft YaHei',
-        'PingFang SC',
-        'Heiti SC',
-        'STHeiti',
-    ]
-    
-    # 检测可用字体
-    available_fonts = [f.name for f in matplotlib.font_manager.fontManager.ttflist]
-    
-    selected_font = None
-    for font in chinese_fonts:
-        if font in available_fonts:
-            selected_font = font
-            break
-    
-    if selected_font:
-        plt.rcParams['font.sans-serif'] = [selected_font] + plt.rcParams['font.sans-serif']
-    
-    plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
-    
-    return selected_font
-
-
-# ============================================================================
 # CLI 入口
 # ============================================================================
 
@@ -260,6 +220,7 @@ def main():
   目标反推:   python finance_formulas.py --type pmt --target 2000000 --rate 0.06 --periods 240
   一次性投资: python finance_formulas.py --type lump --pv 100000 --rate 0.08 --periods 12
   年限反推:   python finance_formulas.py --type years --pv 300000 --target 1000000 --rate 0.08
+  内部收益率: python finance_formulas.py --type irr --cashflows "-10000,-10000,-10000,35000"
         """
     )
     
@@ -275,6 +236,7 @@ def main():
     parser.add_argument('--years', type=float, help='年数')
     parser.add_argument('--nav', type=str, help='净值序列，逗号分隔')
     parser.add_argument('--returns', type=str, help='收益率序列，逗号分隔')
+    parser.add_argument('--cashflows', type=str, help='现金流序列，逗号分隔（负数为流出，正数为流入）')
     parser.add_argument('--rf', type=float, default=0.02, help='无风险利率 (默认 0.02)')
     parser.add_argument('--freq', type=str, default='monthly', 
                         choices=['monthly', 'weekly', 'yearly'],
@@ -391,6 +353,24 @@ def main():
                 "rate_percent": f"{args.rate * 100:.2f}%"
             }
             params = {"pv": args.pv, "target": args.target, "rate": args.rate}
+        
+        elif args.type == 'irr':
+            # 内部收益率
+            if not args.cashflows:
+                print(json.dumps({"error": "IRR 计算需要 --cashflows 参数（现金流序列，逗号分隔）"}))
+                sys.exit(1)
+            
+            cash_flows = [float(x.strip()) for x in args.cashflows.split(',')]
+            irr = calc_irr(cash_flows)
+            annual_irr = (1 + irr) ** 12 - 1  # 月度 IRR 转年化
+            
+            result = {
+                "monthly_irr": round(irr, 6),
+                "monthly_irr_percent": f"{irr * 100:.4f}%",
+                "annual_irr": round(annual_irr, 6),
+                "annual_irr_percent": f"{annual_irr * 100:.2f}%"
+            }
+            params = {"cash_flows": cash_flows}
             
         else:
             print(json.dumps({"error": f"未知的计算类型: {args.type}"}))

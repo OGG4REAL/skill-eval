@@ -3,20 +3,28 @@ MCP 工具模块 - 通过 stdio 与 Docker 容器内的 MCP Server 通信
 
 包含：
 - MCPClient: MCP 协议通信
-- BashTool: bash 命令执行 (对应 server.py 的 exec_command)
-- PythonTool: Python 代码执行 (对应 server.py 的 run_python)
+- MCPToolBase: Read/Write/List 公共基类
+- BashTool: 执行 Python 脚本 (MCP 工具名: Bash)
+- ReadTool: 读取文件 (MCP 工具名: Read)
+- WriteTool: 写入文件 (MCP 工具名: Write)
+- ListTool: 列出目录 (MCP 工具名: List)
 """
 
 import json
+import shlex
 import subprocess
 import threading
 import queue
-import shutil
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 from .base import BaseTool
 from ..config import Config
+
+
+# 输出截断常量（与 Docker 端保持一致）
+MAX_OUTPUT_CHARS = 30000
+HEAD_RATIO = 0.8
 
 
 # ============================================================================
@@ -284,44 +292,225 @@ class MCPClient:
 
 
 # ============================================================================
-# BaseTool 实现
+# MCP 原子工具基类（Read/Write/List 共用）
+# ============================================================================
+
+class MCPToolBase(BaseTool):
+    """
+    MCP 原子工具基类（Read/Write/List 共用）。
+
+    提供统一的 __init__(mcp_client) 和 _format_result(result) 方法。
+    BashTool 返回格式不同，不继承此类。
+    """
+
+    def __init__(self, mcp_client: MCPClient):
+        self.client = mcp_client
+
+    def _format_result(self, result: Dict[str, Any]) -> str:
+        """
+        格式化 Read/Write/List 的返回结果。
+
+        这些工具统一返回 {"success": bool, ...} 格式。
+        成功时：返回完整 JSON（保留 total_lines/truncated 等元数据，LLM 需据此决策）。
+        失败时：返回 error 信息。
+
+        注意：BashTool 返回格式不同，不走此方法。
+        """
+        if not result.get("success", False):
+            return f"Error: {result.get('error', 'Unknown error')}"
+        # 成功时，将完整 JSON 返回给 LLM（保留 total_lines/truncated 等元数据）
+        return json.dumps(result, ensure_ascii=False)
+
+
+# ============================================================================
+# ReadTool / WriteTool / ListTool
+# ============================================================================
+
+class ReadTool(MCPToolBase):
+    """读取文件工具"""
+
+    @property
+    def name(self) -> str:
+        return "Read"
+
+    @property
+    def description(self) -> str:
+        return """读取文件内容（带分页和自动截断保护）。
+
+默认从文件开头读取最多 2000 行。超过 2000 字符的行自动截断。
+返回包含 total_lines 和 truncated 字段，可据此决定翻页或改用脚本处理。
+
+示例：
+- Read("uploads/data.csv")
+- Read("uploads/big.csv", offset=2000, limit=2000)  # 分页
+- Read("skills/fin-advisor-math/SKILL.md")
+"""
+
+    @property
+    def parameters(self) -> Dict:
+        return {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "文件路径（相对于 /workspace）"
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "起始行号（0-based），用于分页读取大文件"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "最大读取行数，默认 2000"
+                }
+            },
+            "required": ["path"]
+        }
+
+    def execute(self, path: str, offset: int = 0, limit: int = 2000) -> str:
+        args = {"path": path, "offset": offset, "limit": limit}
+        try:
+            result = self.client.call_tool("Read", args)
+        except Exception as e:
+            return f"Error: {e}"
+        return self._format_result(result)
+
+
+class WriteTool(MCPToolBase):
+    """写入文件工具"""
+
+    @property
+    def name(self) -> str:
+        return "Write"
+
+    @property
+    def description(self) -> str:
+        return """写入文件内容（审计留痕）。自动创建父目录。
+
+限制：禁止写入 skills/ 目录（只读），内容不超过 1MB。
+
+示例：
+- Write("temp/analysis_001.py", code)  # 临时脚本，配合 Bash 执行
+- Write("output/result.json", json_str)
+"""
+
+    @property
+    def parameters(self) -> Dict:
+        return {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "文件路径（相对于 /workspace）"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "文件内容"
+                },
+                "append": {
+                    "type": "boolean",
+                    "description": "是否追加模式，默认覆盖"
+                }
+            },
+            "required": ["path", "content"]
+        }
+
+    def execute(self, path: str, content: str, append: bool = False) -> str:
+        args = {"path": path, "content": content, "append": append}
+        try:
+            result = self.client.call_tool("Write", args)
+        except Exception as e:
+            return f"Error: {e}"
+        return self._format_result(result)
+
+
+class ListTool(MCPToolBase):
+    """列出目录工具"""
+
+    @property
+    def name(self) -> str:
+        return "List"
+
+    @property
+    def description(self) -> str:
+        return """列出目录内容。返回文件名、类型和大小。
+
+结果超过 500 条时自动截断，返回 total_count 和 truncated 字段。
+
+示例：
+- List("uploads/")
+- List(".", pattern="*.csv")
+- List("skills/", recursive=True)
+"""
+
+    @property
+    def parameters(self) -> Dict:
+        return {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "目录路径（相对于 /workspace），默认当前目录"
+                },
+                "pattern": {
+                    "type": "string",
+                    "description": "文件名模式（glob 语法，如 *.csv），默认 *"
+                },
+                "recursive": {
+                    "type": "boolean",
+                    "description": "是否递归子目录，默认 false"
+                }
+            },
+            "required": []
+        }
+
+    def execute(self, path: str = ".", pattern: str = "*", recursive: bool = False) -> str:
+        args = {"path": path, "pattern": pattern, "recursive": recursive}
+        try:
+            result = self.client.call_tool("List", args)
+        except Exception as e:
+            return f"Error: {e}"
+        return self._format_result(result)
+
+
+# ============================================================================
+# BashTool（精简白名单，仅允许 python/python3）
 # ============================================================================
 
 class BashTool(BaseTool):
     """
-    Bash 命令执行工具
-    调用 MCP Server 的 exec_command
+    Bash 命令执行工具（仅允许 python/python3）
+    调用 MCP Server 的 Bash 工具
     """
-    
-    ALLOWED_COMMANDS = {'cat', 'ls', 'head', 'tail', 'grep', 'find', 'wc', 'pwd', 'file', 'tree', 'python', 'python3'}
-    
+
+    ALLOWED_COMMANDS = {'python', 'python3'}
+    DANGEROUS_PATTERNS = ['>', '>>', '|', ';', '&&', '||', '`', '$(', 'rm ', 'mv ']
+
     def __init__(self, mcp_client: MCPClient):
         self.client = mcp_client
-    
+
     @property
     def name(self) -> str:
-        return "bash"
-    
+        return "Bash"
+
     @property
     def description(self) -> str:
-        return """执行命令行指令以探索文件系统与运行脚本。
+        return """执行 Python 脚本。仅允许 python/python3 命令。
 
-工作目录：/workspace
-技能目录：/workspace/skills（只读）
+重要：不要将此工具用于文件操作，请使用专用工具：
+- 读取文件 → Read
+- 写入文件 → Write
+- 列出目录 → List
 
-允许的命令：cat, ls, head, tail, grep, find, wc, pwd, file, tree, python, python3
+用法：
+1. 执行 Skill CLI 脚本（推荐）：
+   Bash("python skills/fin-advisor-math/scripts/finance_formulas.py --type aip --pmt 3000")
+2. 执行临时脚本（配合 Write，审计留痕）：
+   Bash("python temp/my_script.py")
 
-重要提示：
-- 技能已通过 Skill 工具注入，无需手动 cat SKILL.md
-- 优先使用技能提供的 CLI 脚本（更快更可靠）
-- 仅在脚本不适用时才用 run_python_code
-
-示例：
-- bash("ls -la uploads/")
-- bash("head -20 uploads/data.csv")
-- bash("python skills/fin-advisor-math/scripts/finance_formulas.py --type aip --pmt 3000")
+禁止：python -c（内联代码）和 python -m（模块执行）。
 """
-    
+
     @property
     def parameters(self) -> Dict[str, Any]:
         return {
@@ -329,178 +518,73 @@ class BashTool(BaseTool):
             "properties": {
                 "command": {
                     "type": "string",
-                    "description": "Bash command to execute"
+                    "description": "要执行的命令（仅限 python/python3 + .py 文件）"
                 }
             },
             "required": ["command"]
         }
-    
+
     def execute(self, command: str) -> str:
         command = command.strip()
         print(f"\n[Bash] 执行: {command}")
-        
+
         if not command:
             return "Error: Empty command"
-        
-        # 安全检查
-        parts = command.split()
+
+        # 危险字符检查（注入防护，在 shlex 解析前拦截）
+        if any(p in command for p in self.DANGEROUS_PATTERNS):
+            return "Error: Forbidden characters in command"
+
+        # 使用 shlex.split() 正确处理引号路径
+        try:
+            parts = shlex.split(command)
+        except ValueError as e:
+            return f"Error: Invalid command syntax: {e}"
+
         base_cmd = parts[0]
         if base_cmd not in self.ALLOWED_COMMANDS:
-            return f"Error: '{base_cmd}' not allowed. Use: {', '.join(sorted(self.ALLOWED_COMMANDS))}"
-        
-        # Python 命令特殊检查：禁止 -c 和 -m，必须执行 .py 文件
-        if base_cmd in ('python', 'python3'):
-            if len(parts) < 2:
-                return "Error: python command requires a .py script path"
-            if parts[1] in ('-c', '-m'):
-                return "Error: python -c and -m are forbidden. Execute .py scripts only."
-            if not parts[1].endswith('.py'):
-                return "Error: python command must run a .py script file"
-        
-        dangerous = ['>', '>>', '|', ';', '&&', '||', '`', '$(', 'rm ', 'mv ']
-        if any(p in command for p in dangerous):
-            return "Error: Forbidden characters in command"
-        
+            return f"Error: Only python/python3 allowed, got '{base_cmd}'"
+
+        # 禁止 -c 和 -m
+        if len(parts) >= 2 and parts[1] in ('-c', '-m'):
+            return "Error: python -c and -m are forbidden. Use Write + Bash for audit trail."
+
+        # 必须执行 .py 文件
+        if len(parts) >= 2 and not parts[1].endswith('.py'):
+            return "Error: Must execute a .py script file"
+
         # 调用 MCP
         try:
-            result = self.client.call_tool("exec_command", {"command": command})
+            result = self.client.call_tool("Bash", {"command": command})
         except Exception as e:
             return f"Error: {e}"
-        
+
+        # 格式化输出（含二次截断保护）
+        return self._format_exec_result(result)
+
+    def _format_exec_result(self, result: Dict[str, Any]) -> str:
+        """格式化 Bash 返回结果（含输出截断）"""
         output = result.get("stdout", "")
-        if result.get("stderr"):
-            output += f"\n[stderr]: {result['stderr']}"
-        if result.get("exit_code", 0) != 0:
-            output += f"\n[exit_code]: {result['exit_code']}"
-        
+        stderr = result.get("stderr", "")
+        exit_code = result.get("exit_code", 0)
+
+        # 二次截断保护（Docker 端已做一次，此处双保险）
+        if len(output) > MAX_OUTPUT_CHARS:
+            head = int(MAX_OUTPUT_CHARS * HEAD_RATIO)
+            tail = MAX_OUTPUT_CHARS - head
+            output = (
+                output[:head]
+                + f"\n\n...[输出被截断，共 {len(output)} 字符]...\n\n"
+                + output[-tail:]
+            )
+
+        if stderr:
+            output += f"\n[stderr]: {stderr}"
+        if exit_code != 0:
+            output += f"\n[exit_code]: {exit_code}"
+
         return output or "[No output]"
-    
-    def cleanup(self):
-        pass  # MCPClient 由外部管理
 
-
-class PythonTool(BaseTool):
-    """
-    Python 代码执行工具（有状态 REPL）
-    调用 MCP Server 的 run_python
-    """
-    
-    OUTPUT_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.pdf', '.csv', '.html', '.docx', '.xlsx', '.txt', '.json'}
-    
-    def __init__(self, mcp_client: MCPClient, output_dir: Optional[Path] = None):
-        self.client = mcp_client
-        self.output_dir = Path(output_dir) if output_dir else Path("output")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-    
-    @property
-    def name(self) -> str:
-        return "run_python_code"
-    
-    @property
-    def description(self) -> str:
-        return """在有状态沙盒中执行 Python 代码（变量跨调用保留）。
-
-预装库：pandas, numpy, matplotlib, seaborn, openpyxl, python-docx
-
-重要提示：
-- 适合复杂数据处理与自定义计算
-- 优先使用已有脚本/技能指令中的推荐方式
-- 需要产出文件时，将文件保存到 /workspace/output/ 目录
-
-使用建议：
-- 尽量写完整逻辑，减少拆分调用
-- 变量跨调用保留，无需重复导入和加载数据
-"""
-    
-    @property
-    def parameters(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string",
-                    "description": "Python code to execute"
-                }
-            },
-            "required": ["code"]
-        }
-    
-    def execute(self, code: str) -> str:
-        print(f"\n[Python] 执行代码 ({len(code)} 字符)")
-        print(f"[Python] 代码预览: {code[:200]}{'...' if len(code) > 200 else ''}")
-        
-        # 记录执行前的文件
-        workspace = self.client.workspace_path
-        before = self._snapshot_files(workspace)
-        
-        # 调用 MCP
-        try:
-            result = self.client.call_tool("run_python", {"code": code})
-        except Exception as e:
-            return f"执行错误: {e}"
-        
-        # 构建输出
-        lines = []
-        
-        if result.get("stdout"):
-            lines.append("=== 输出 ===")
-            lines.append(result["stdout"])
-        
-        if result.get("result") and result["result"] != "None":
-            lines.append("\n=== 返回值 ===")
-            lines.append(result["result"])
-        
-        if result.get("stderr"):
-            lines.append("\n=== 信息 ===")
-            lines.append(result["stderr"])
-        
-        if result.get("error"):
-            lines.append("\n=== 错误 ===")
-            err = result["error"]
-            lines.append(f"{err.get('type', 'Error')}: {err.get('message', '')}")
-            if err.get("traceback"):
-                lines.append(err["traceback"])
-        
-        # 收集新生成的文件
-        after = self._snapshot_files(workspace)
-        new_files = after - before
-        
-        collected = self._collect_output_files(workspace, new_files)
-        if collected:
-            lines.append("\n=== 生成的文件 ===")
-            lines.extend(collected)
-        
-        final_output = "\n".join(lines) if lines else "代码执行完成（无输出）"
-        print(f"[Python] [OK] 执行完成，输出 {len(final_output)} 字符")
-        
-        return final_output
-    
-    def _snapshot_files(self, directory: Path) -> set:
-        """快照当前目录的文件"""
-        if not directory.exists():
-            return set()
-        return {f.name for f in directory.iterdir() if f.is_file()}
-    
-    def _collect_output_files(self, workspace: Path, new_files: set) -> List[str]:
-        """收集新生成的文件到 output 目录"""
-        collected = []
-        for fname in new_files:
-            fpath = workspace / fname
-            if not fpath.exists():
-                continue
-            
-            suffix = fpath.suffix.lower()
-            if suffix not in self.OUTPUT_EXTENSIONS:
-                continue
-            
-            # 复制到 output 目录
-            target = self.output_dir / fname
-            shutil.copy2(fpath, target)
-            collected.append(f"[OK] {fname} -> {target}")
-            print(f"[Python] [OK] 收集文件: {fname}")
-        
-        return collected
-    
     def cleanup(self):
         pass  # MCPClient 由外部管理
 
@@ -512,18 +596,17 @@ class PythonTool(BaseTool):
 def create_mcp_tools(
     session_id: str = None,
     uploads_dir: str = None,
-    output_dir: str = None
-) -> List[BaseTool]:
+) -> Tuple[List[BaseTool], MCPClient]:
     """
-    创建 MCP 工具集（bash, run_python_code）
-    
+    创建 MCP 工具集（Bash, Read, Write, List）及其共享的 MCPClient。
+    PythonTool 已移除 — 改用 Write + Bash，便于审计留痕。
+
     Args:
         session_id: 会话 ID（可选，如果提供 uploads_dir 则忽略）
         uploads_dir: 工作目录路径（用户上传文件所在目录）
-        output_dir: 输出目录路径
-        
+
     Returns:
-        包含 BashTool 和 PythonTool 的列表
+        (tools, mcp_client) 元组。调用方应保存 mcp_client 引用用于生命周期管理。
     """
     # 确定工作目录
     if uploads_dir:
@@ -534,31 +617,26 @@ def create_mcp_tools(
         from uuid import uuid4
         session_id = uuid4().hex
         workspace_path = Config.SESSIONS_ROOT / session_id
-    
+
     workspace_path.mkdir(parents=True, exist_ok=True)
-    
+
     # 确定 session_id
     if not session_id:
         session_id = workspace_path.name
-    
+
     # 创建 MCP Client
     mcp_client = MCPClient(
         session_id=session_id,
         workspace_path=workspace_path,
         skills_path=Config.SKILLS_DIR
     )
-    
-    # 确定输出目录
-    if output_dir:
-        output_path = Path(output_dir)
-    else:
-        output_path = workspace_path / "output"
-    output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # 创建工具
     tools = [
         BashTool(mcp_client),
-        PythonTool(mcp_client, output_dir=output_path)
+        ReadTool(mcp_client),
+        WriteTool(mcp_client),
+        ListTool(mcp_client),
     ]
-    
-    return tools
+
+    return tools, mcp_client

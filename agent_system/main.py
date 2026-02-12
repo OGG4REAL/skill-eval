@@ -11,7 +11,7 @@ from rich.panel import Panel
 from .config import Config
 from .skills.manager import SkillManager
 from .tools.base import ToolRegistry
-from .tools.mcp_tools import MCPClient, BashTool, PythonTool
+from .tools.mcp_tools import create_mcp_tools
 from .tools.skill_tool import SkillTool
 from .tools.ui_tools import register_ui_tools
 from .agent.core import Agent
@@ -32,8 +32,8 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
     架构：
     1. SkillManager 负责提供元数据（给 system prompt / Skill 工具）
     2. Skill 工具负责注入 SKILL.md（以 user 消息注入）
-    3. Agent 通过 run_python_code 工具（MCP）执行代码
-    4. 所有工具在 Docker 容器内执行，共享有状态的 Python 环境
+    3. MCP 原子工具（Read/Write/List/Bash）在 Docker 容器内执行
+    4. Write + Bash 模式实现代码审计留痕
     
     Args:
         log_file: 聊天记录保存路径
@@ -77,34 +77,26 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
     else:
         console.print("[yellow]⚠ 未找到任何技能（SKILL.md 文件）[/yellow]")
     
-    # 4. 初始化 MCP 客户端（所有工具共享）
+    # 4. 注册工具
     console.print(f"\n[cyan]初始化 Docker MCP 沙箱...[/cyan]")
     console.print(f"[dim]镜像: {Config.SANDBOX_IMAGE}[/dim]")
     
-    mcp_client = MCPClient(
-        session_id=derived_session_id,
-        workspace_path=session_base,
-        skills_path=Config.SKILLS_DIR,
-    )
-    
-    # 5. 注册工具
     console.print("\n[cyan]注册核心工具:[/cyan]")
     tool_registry = ToolRegistry()
-    
-    # Bash 工具
-    bash_tool = BashTool(mcp_client)
-    tool_registry.register(bash_tool)
-    console.print(f"  [green]✓[/green] {bash_tool.name:20s} - 文件探索（容器内执行）")
-    
-    # Python 工具
-    python_tool = PythonTool(mcp_client, output_dir=session_output)
-    tool_registry.register(python_tool)
-    console.print(f"  [green]✓[/green] {python_tool.name:20s} - Python 执行（有状态 REPL）")
     
     # Skill 工具（技能加载与注入）
     skill_tool = SkillTool(skill_manager)
     tool_registry.register(skill_tool)
     console.print(f"  [green]✓[/green] {skill_tool.name:20s} - 技能加载与注入")
+    
+    # MCP 工具（Bash, Read, Write, List）
+    mcp_tools, mcp_client = create_mcp_tools(
+        session_id=derived_session_id,
+        uploads_dir=str(session_uploads),
+    )
+    for tool in mcp_tools:
+        tool_registry.register(tool)
+        console.print(f"  [green]✓[/green] {tool.name:20s} - MCP 工具（容器内执行）")
     
     # UI 工具（客户端执行）
     console.print("\n[cyan]注册 UI 工具（客户端执行）:[/cyan]")
@@ -122,7 +114,7 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
         uploads_dir=session_uploads
     )
     
-    # 保存 MCP 客户端引用以便清理
+    # 保存 MCP 客户端引用以便清理（Phase 3: 使用工厂函数显式返回的引用）
     agent._mcp_client = mcp_client
     
     console.print("[green]✓ Agent 初始化完成[/green]\n")
@@ -135,12 +127,12 @@ def display_welcome():
     welcome_text = """
 # Claude Skills Agent
 
-**架构**: Docker MCP Sandbox (有状态执行)
+**架构**: Docker MCP Sandbox (原子工具基座)
 
 **核心特性**:
-- 通过 bash 自由探索文件系统
-- Skill 工具注入技能文档（减少轮次）
-- 有状态的 Python 执行环境（变量跨调用保留）
+- 原子工具：Read / Write / List / Bash（Docker 容器内执行）
+- Skill 工具注入领域知识（减少轮次）
+- Write + Bash 审计留痕（所有执行代码可追溯）
 - 本地 Docker 沙箱（无需云服务）
 
 **使用方式**:

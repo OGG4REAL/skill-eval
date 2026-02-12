@@ -160,7 +160,7 @@ def test_skill_tool_description():
     desc = tool.description
     
     # 验证包含模板内容
-    assert "Execute a skill" in desc, "应包含模板开头"
+    assert "Load a specialized skill" in desc, "应包含模板开头"
     assert "Available skills:" in desc, "应包含 'Available skills:' 标记"
     
     # 验证包含技能清单
@@ -170,7 +170,7 @@ def test_skill_tool_description():
     
     # 验证包含控制指令
     assert "IMMEDIATELY" in desc, "应包含 IMMEDIATELY 控制指令"
-    assert "NEVER just announce" in desc, "应包含禁止只提及的指令"
+    assert "NEVER skip this tool" in desc, "应包含禁止跳过的指令"
     
     print(f"  - description 长度: {len(desc)} 字符")
     print(f"  - 包含技能清单: [OK]")

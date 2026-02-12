@@ -2,7 +2,7 @@
 name: csv-data-summarizer
 description: Professional Data Analyst specializing in General CSV processing and Enhanced Financial Statement (P&L, Balance Sheet) analysis. Capable of calculating weighted ratios, CAGR, and detecting business insights with domain expertise.
 metadata:
-  version: 5.0.0
+  version: 6.0.0
   dependencies: python>=3.8, pandas>=2.0.0
 ---
 
@@ -57,6 +57,55 @@ This skill transforms raw CSV data into professional-grade business insights. It
 - Providing partial analysis that requires follow-up
 - Describing what you COULD do instead of DOING it
 
+---
+
+## 🚦 执行策略 (EXECUTION STRATEGY)
+
+### 工作流
+
+1. **Read CSV 概览**：读取前几行了解列名、数据类型、行数
+   ```
+   Read("uploads/data.csv", limit=20)
+   ```
+
+2. **Read 参考代码**：学习分析模式和最佳实践
+   ```
+   Read("skills/csv-data-summarizer/analyze.py")
+   ```
+
+3. **Write 分析脚本**：基于参考代码的模式，编写针对当前数据的分析脚本
+   ```
+   Write("temp/analysis_001.py", code)
+   ```
+
+4. **Bash 执行**：运行脚本获取结构化结果
+   ```
+   Bash("python temp/analysis_001.py")
+   ```
+
+5. **UI 展示**：基于结果调用 render_chart / render_table / show_notification
+
+### 参考代码说明
+
+`analyze.py` 是本 skill 的参考实现，**不作为 CLI 直接调用**，而是供你 Read 后学习以下模式：
+
+- **NpEncoder**：处理 numpy 类型的 JSON 序列化
+- **金融列检测**：通过关键词匹配识别 Revenue/Profit/Margin 等列
+- **加权比率计算**：`total_profit / total_revenue` 而非 `df['margin'].mean()`
+- **pandas 惯用法**：groupby、agg、sort_values 等数据处理模式
+
+编写分析脚本时，优先复用参考代码中的模式，而非从零发明。
+
+### ❌ 反模式（禁止）
+
+- ❌ 不看参考代码就从零写分析逻辑（容易遗漏加权比率等领域规则）
+- ❌ 使用 matplotlib/seaborn 生成图片（可视化由前端 ECharts 负责）
+- ❌ 使用 python -c 内联代码（无法审计追溯）
+- ❌ 输出 `ANALYSIS_RESULT_START/END` 标记（已废弃）
+- ❌ 输出 `charts` 数组（已废弃，应输出 `data` 对象）
+
+---
+
 ## Domain Expertise: Financial Analysis Principles (MUST FOLLOW)
 
 When columns related to finance (Revenue, Expense, Margin, Tax, etc.) are detected, the following "Accounting Constitution" must be applied:
@@ -69,16 +118,7 @@ When columns related to finance (Revenue, Expense, Margin, Tax, etc.) are detect
 3.  **Growth Metrics**: Use CAGR (Compound Annual Growth Rate) or YoY/MoM comparisons. Avoid "first record vs last record" snapshots as they ignore volatility.
 4.  **P&L Hierarchy Awareness**: Automatically validate the logic `Revenue - COGS = Gross Profit` and `Gross Profit - OpEx = Operating Income`. Report discrepancies as warnings.
 
-## Usage Workflow
-
-1.  **Step 1: Domain Detection**: Scan headers for keywords (Revenue, Cost, Profit, Margin, CAC, LTV).
-2.  **Step 2: Intelligent Cleaning**: Standardize date columns and handle missing values gracefully.
-3.  **Step 3: Quantitative Calculation**:
-    *   *General Mode*: Mean, Median, Distribution, Basic Trends.
-    *   *Financial Mode*: Weighted Margins, Profitability Analysis, Multi-series Comparison.
-4.  **Step 4: Structured Insight Generation**:
-    *   Create a list of findings. Each must have a `type` (trend, composition, correlation, health_check).
-5.  **Step 5: ECharts Data Formatting**: Ensure data types match ECharts requirements strictly.
+---
 
 ## Output Format (Structured Data)
 
@@ -90,7 +130,7 @@ This skill outputs **structured analysis results** that can be consumed by the O
 - Include `data` object with computed metrics, aggregations, and trends
 - Do NOT include chart configurations - visualization is handled by Orchestrator
 
-**Example Python output pattern:**
+**Example output structure:**
 
 ```python
 import json
@@ -119,6 +159,8 @@ print(json.dumps(result, cls=NpEncoder, ensure_ascii=False, indent=2))
 ```
 
 **NOTE**: The Orchestrator will receive this output and decide whether to use `render_chart`, `render_table`, or text response based on the data structure.
+
+---
 
 ## JSON Output Structure
 
@@ -164,6 +206,8 @@ print(json.dumps(result, cls=NpEncoder, ensure_ascii=False, indent=2))
 }
 ```
 
+---
+
 ## Visualization Guidelines (FOR ORCHESTRATOR)
 
 **⚠️ This skill does NOT generate visualizations. It outputs structured data.**
@@ -177,5 +221,5 @@ The Orchestrator will read the output and decide visualization:
 **DO NOT**:
 - Use `matplotlib`, `seaborn`, or any plotting library
 - Save image files (`.png`, `.jpg`, etc.)
-- Include `charts` array in output - that's the old protocol
+- Include `charts` array in output - that's the old protocol (deprecated)
 - Use `ANALYSIS_RESULT_START/END` markers - deprecated

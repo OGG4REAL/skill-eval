@@ -6,9 +6,19 @@ sessions/*
 output/*
 !output/.gitkeep
 *.log
+temp/
+test.csv
+*.docx
+*.md
+!README.md
+!docs/*.md
+!skills/*/SKILL.md
+!.claude/skills/*/SKILL.md
+!.cursor/skills-cursor/*/SKILL.md
 
 # Virtual environments
 venv/
+node_modules/
 
 # Bytecode / cache
 __pycache__/
@@ -47,6 +57,7 @@ env/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -72,4 +83,11 @@ chat_history*.log
 
 # E2B
 .e2b/
+
+# Other
+cc_tools_params_analysis.md
+claude.md
+create_doc.js
+edit_doc.py
+unpacked/
 

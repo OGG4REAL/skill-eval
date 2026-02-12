@@ -10,8 +10,11 @@ from .ui_tools import (
 )
 from .mcp_tools import (
     MCPClient,
+    MCPToolBase,
     BashTool,
-    PythonTool,
+    ReadTool,
+    WriteTool,
+    ListTool,
     create_mcp_tools,
 )
 
@@ -28,7 +31,10 @@ __all__ = [
     "register_ui_tools",
     # MCP 工具
     "MCPClient",
+    "MCPToolBase",
     "BashTool",
-    "PythonTool",
+    "ReadTool",
+    "WriteTool",
+    "ListTool",
     "create_mcp_tools",
 ]
