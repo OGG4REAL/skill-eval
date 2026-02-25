@@ -5,10 +5,11 @@
  * 注意：使用自定义 SSE 协议而非 CopilotKit 标准协议
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Trash2, FileUp, Loader2 } from 'lucide-react';
+import { Send, Trash2, FileUp, Loader2, Download } from 'lucide-react';
 import { ThinkingPanel, MarkdownRenderer } from './components';
 import { ChartAction, TableAction, NotificationAction } from './actions';
 import { listUploads, uploadFiles } from '../lib/api';
+import { downloadReport } from '../lib/reportGenerator';
 import type { FileInfo } from '../types';
 import type { 
   ChatMessage, 
@@ -199,6 +200,12 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     }
   };
 
+  // 导出报告
+  const handleExportReport = () => {
+    if (!sessionId || messages.length === 0) return;
+    downloadReport(sessionId, messages);
+  };
+
   // 清空对话
   const handleClearChat = () => {
     setMessages([]);
@@ -260,6 +267,30 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={handleExportReport}
+            disabled={messages.length === 0}
+            title="导出为独立 HTML 报告"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '10px',
+              border: '1px solid rgba(84, 112, 198, 0.5)',
+              background: messages.length === 0
+                ? 'transparent'
+                : 'linear-gradient(135deg, rgba(84,112,198,0.25), rgba(59,162,114,0.25))',
+              color: messages.length === 0 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)',
+              cursor: messages.length === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              opacity: messages.length === 0 ? 0.5 : 1,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Download size={16} />
+            导出报告
+          </button>
           <button
             onClick={() => uploadInputRef.current?.click()}
             disabled={!sessionId || isUploading}

@@ -22,7 +22,7 @@ function formatCellValue(value: unknown, type?: TableColumn['type']): string {
         ? `¥${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
         : String(value);
     case 'percentage':
-      return typeof value === 'number' ? `${(value * 100).toFixed(2)}%` : String(value);
+      return typeof value === 'number' ? `${value.toFixed(2)}%` : String(value);
     case 'date':
       return value instanceof Date ? value.toLocaleDateString() : String(value);
     default:
