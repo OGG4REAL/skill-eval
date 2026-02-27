@@ -4,6 +4,7 @@ Skill 工具模块
 """
 from typing import Dict, Any
 from .base import BaseTool
+from ..constants import format_skill_marker
 
 
 # Skill 工具 description 模板
@@ -115,15 +116,26 @@ class SkillTool(BaseTool):
     def get_injection_content(self) -> str:
         """
         获取待注入的 user 消息内容
-        
+
+        注入格式（包含持久化标记）：
+        <skill-loaded>{skill_name}</skill-loaded>
+        Base directory for this skill: {skill_dir}
+
+        {skill_content}
+
+        ARGUMENTS: {args}
+
         Returns:
-            str: 格式化的技能注入内容（Base directory + SKILL.md + ARGUMENTS）
+            str: 格式化的技能注入内容
         """
         skill_name = self._pending_skill
         skill_dir = self.skill_manager.get_skill_directory(skill_name)
         skill_content = self.skill_manager.get_skill_content(skill_name)
-        
-        return f"""Base directory for this skill: {skill_dir}
+
+        # 在内容头部添加持久化标记
+        skill_marker = format_skill_marker(skill_name)
+
+        return f"""{skill_marker}Base directory for this skill: {skill_dir}
 
 {skill_content}
 

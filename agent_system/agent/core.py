@@ -49,8 +49,9 @@ class Agent:
         self.log_file = Path(log_file)
         self.history_file = self.log_file.parent / "history.json"
         
-        # 初始化记忆管理器（保留最近3轮完整对话）
-        self.memory_manager = MemoryManager(recent_window=3)
+        # 初始化记忆管理器（保留最近3轮完整对话轮次）
+        # 注：recent_window 参数已废弃，实际使用 recent_conversation_rounds
+        self.memory_manager = MemoryManager(recent_conversation_rounds=3)
         
         # 初始化对话历史（从文件加载或新建）
         self.conversation_history: List[Dict[str, Any]] = []

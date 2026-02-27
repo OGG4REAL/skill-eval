@@ -1,181 +1,203 @@
 """
 记忆管理模块
 实现对话历史的渐进式压缩和会话摘要生成
+
+v2.0 改进：
+- Skill 注入保护：识别 <skill-loaded> 标记，保护 Skill 内容不被压缩
+- 多 Skill 替换：当存在多个 Skill 时，只保留最新的一个
+- 区分对话轮次：按真正的用户输入划分轮次，而非思考轮次
 """
 import json
+import re
 from typing import List, Dict, Any, Optional
+
+from ..constants import (
+    SKILL_LOADED_TAG,
+    is_skill_injection_content,
+    extract_skill_name,
+)
 
 
 class MemoryManager:
     """
     对话记忆管理器
-    
+
     核心功能：
     1. 滑动窗口压缩：保留最近N轮完整对话，压缩更早的历史
     2. 按时间顺序生成摘要：User → Tools → Agent 流程清晰
     3. 保留错误信息：让 LLM 从失败中学习
-    4. Skill 上下文保护：识别并保护 Skill 文档交互，防止被压缩
+    4. Skill 上下文保护：识别并保护 Skill 注入消息，防止被压缩
+    5. 多 Skill 替换：当加载新 Skill 时，清除旧的 Skill 内容
     """
-    
-    def __init__(self, recent_window: int = 3):
+
+    def __init__(self, recent_window: int = 3, recent_conversation_rounds: int = 3):
         """
         初始化记忆管理器
-        
+
         Args:
-            recent_window: 保留完整细节的最近轮数（默认3轮）
+            recent_window: 保留完整细节的最近思考轮数（默认3轮）- 已废弃，保留兼容
+            recent_conversation_rounds: 保留完整对话轮次的数量（默认3轮）
         """
         self.recent_window = recent_window
+        self.recent_conversation_rounds = recent_conversation_rounds
         self.current_round = 0  # 当前对话轮次
+
+    # =========================================================================
+    # Skill 检测方法
+    # =========================================================================
+
+    def _is_skill_injection(self, msg: Dict) -> bool:
+        """
+        检测是否是 Skill 注入消息（包含 <skill-loaded> 标记的 user 消息）
+
+        Args:
+            msg: 消息对象
+
+        Returns:
+            是否是 Skill 注入消息
+        """
+        if msg.get('role') != 'user':
+            return False
+        content = msg.get('content', '')
+        return is_skill_injection_content(content)
+
+    def _extract_skill_name_from_msg(self, msg: Dict) -> Optional[str]:
+        """
+        从 Skill 注入消息中提取技能名称
+
+        Args:
+            msg: 消息对象
+
+        Returns:
+            技能名称，如果不是 Skill 注入则返回 None
+        """
+        content = msg.get('content', '')
+        return extract_skill_name(content)
     
     def compress_history(self, conversation_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        压缩对话历史，同时保护 Skill 文档
+        压缩对话历史，同时保护 Skill 注入内容
+
+        核心逻辑：
+        1. 分离：Skill 注入消息 vs 普通历史
+        2. 多 Skill 替换：如果存在多个 Skill，只保留最新的一个
+        3. Skill 注入消息始终保留，不参与压缩
+        4. 对普通历史进行滑动窗口压缩
+
+        Args:
+            conversation_history: 完整的对话历史
+
+        Returns:
+            压缩后的对话历史
         """
         if not conversation_history:
             return []
-        
-        # 1. 分离：提取 Skill 文档相关的交互
-        skill_interactions = [] # 存放 (assistant_msg, tool_msg) 对
-        normal_history = []     # 存放其他普通消息
-        
-        i = 0
-        while i < len(conversation_history):
-            msg = conversation_history[i]
-            
-            # 检查是否是包含读取 SKILL.md 的 assistant 消息
-            is_skill_call = False
-            if msg.get('role') == 'assistant' and 'tool_calls' in msg:
-                for tc in msg['tool_calls']:
-                    try:
-                        args = json.loads(tc['function']['arguments'])
-                        if 'cat' in args.get('command', '') and 'SKILL.md' in args.get('command', ''):
-                            is_skill_call = True
-                            break
-                    except:
-                        pass
-            
-            if is_skill_call:
-                # 这是一个发起读取 Skill 的请求，我们需要把这一轮完整的交互（请求+结果）都保下来
-                assistant_msg = msg
-                tool_msg = None
-                
-                # 向后找对应的 tool 消息
-                # 注意：可能存在多个工具调用，我们需要找到对应的那个 tool 消息
-                # 这里简单处理：如果下一条是 tool 消息，我们就把它作为结果
-                # 更严谨的做法是匹配 tool_call_id，但在此简化场景下通常 assistant 后紧跟 tool
-                j = i + 1
-                while j < len(conversation_history):
-                    next_msg = conversation_history[j]
-                    if next_msg.get('role') == 'tool':
-                        # 找到了对应的 tool 消息 (假设 SKILL.md 读取是单独的工具调用或主要调用)
-                        skill_interactions.append(assistant_msg)
-                        skill_interactions.append(next_msg)
-                        # 将这些消息从普通流中剔除（因为它们现在被提升为 Reference Memory）
-                        # 注意：i 会在循环末尾递增，所以我们要正确处理索引
-                        break
-                    elif next_msg.get('role') == 'user':
-                        # 已经到了下一轮，说明没有找到对应的 tool 消息
-                        break
-                    j += 1
-                
-                # 即使没找到 tool 消息（异常情况），assistant 消息也不应该被当做 Skill 交互
-                # 但为了安全起见，如果没有找到配对的 tool，我们就把它留在 normal_history
-                if j < len(conversation_history) and conversation_history[j].get('role') == 'tool':
-                    i = j + 1 # 跳过 assistant 和 tool
-                    continue
-            
-            # 如果不是 Skill 相关，或者是落单的消息，放入普通历史
-            normal_history.append(msg)
-            i += 1
-            
-        # 2. 对普通历史进行常规压缩
+
+        # 1. 分离 Skill 注入消息和普通历史
+        skill_injections = []  # [(index, skill_name, msg), ...]
+        normal_history = []
+
+        for i, msg in enumerate(conversation_history):
+            if self._is_skill_injection(msg):
+                skill_name = self._extract_skill_name_from_msg(msg)
+                skill_injections.append((i, skill_name, msg))
+            else:
+                normal_history.append(msg)
+
+        # 2. 多 Skill 替换逻辑：只保留最新的 Skill
+        if len(skill_injections) > 1:
+            # 只保留最后一个（最新的）
+            skill_injections = [skill_injections[-1]]
+
+        # 3. 对普通历史进行压缩
         compressed_normal = self._super_compress(normal_history)
-        
-        # 3. 重组最终上下文
-        # 顺序：[压缩摘要] -> [Skill 文档(插队)] -> [最近对话]
-        
+
+        # 4. 重组最终上下文
+        # 顺序：[压缩摘要] -> [Skill 注入] -> [最近对话]
         final_history = []
-        
-        # 先放压缩后的摘要（如果有）
+
+        # 摘要（如果有）
         if compressed_normal and compressed_normal[0].get('role') == 'system':
-            final_history.append(compressed_normal[0]) # 摘要
-            compressed_normal.pop(0) # 移除摘要，剩下的是最近对话
-            
-        # 插入被保护的 Skill 文档
-        if skill_interactions:
-            final_history.append({
-                "role": "system", 
-                "content": "【Reference Memory】The following are specific Skill documentations loaded previously. Always refer to them for rules and formats:"
-            })
-            final_history.extend(skill_interactions)
-            
-        # 最后放最近的普通对话
+            final_history.append(compressed_normal[0])
+            compressed_normal = compressed_normal[1:]
+
+        # Skill 注入（如果有）- 始终保留在摘要之后
+        for _, _, msg in skill_injections:
+            final_history.append(msg)
+
+        # 最近对话
         final_history.extend(compressed_normal)
-        
+
         return final_history
 
     def _super_compress(self, conversation_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        执行常规的滑动窗口压缩（原 compress_history 逻辑）
+        执行常规的滑动窗口压缩
+
+        使用 _identify_conversation_rounds 识别真正的对话轮次，
+        而非 _identify_rounds（思考轮次）。
         """
         if not conversation_history:
             return []
-        
+
         # 提取现有的摘要消息
         existing_summaries = [msg for msg in conversation_history if msg.get('role') == 'system' and 'Earlier Conversation Summary' in msg.get('content', '')]
-        
-        # 识别对话轮次（每个 user 消息标志新一轮）
-        rounds = self._identify_rounds(conversation_history)
-        
+
+        # 识别真正的对话轮次（用户输入 → 任务完成）
+        rounds = self._identify_conversation_rounds(conversation_history)
+
         # 如果总轮数不超过窗口大小，不压缩
-        if len(rounds) <= self.recent_window:
+        if len(rounds) <= self.recent_conversation_rounds:
             return conversation_history
-        
+
         # 计算需要压缩的轮次
-        compress_round_count = len(rounds) - self.recent_window
-        
+        compress_round_count = len(rounds) - self.recent_conversation_rounds
+
         # 提取需要压缩的消息和保留的消息
         compress_messages = []
         keep_messages = []
-        
+
         for i, round_msgs in enumerate(rounds):
             if i < compress_round_count:
                 compress_messages.extend(round_msgs)
             else:
                 keep_messages.extend(round_msgs)
-        
+
         # 生成新的压缩摘要
         new_summary = self._generate_compressed_summary(compress_messages, compress_round_count)
-        
+
         # 合并摘要：旧摘要 + 新摘要内容
         if existing_summaries:
             combined_content = existing_summaries[0]['content'] + "\n\n" + new_summary['content']
             new_summary['content'] = combined_content
-        
+
         # 返回：摘要 + 最近完整对话
         return [new_summary] + keep_messages
     
     def _identify_rounds(self, conversation_history: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
         """
-        识别对话轮次
-        
+        识别对话轮次（旧方法，按思考轮次划分）
+
         每个 user 消息标志一轮对话的开始
         一轮包括：user → assistant (可能有 tool_calls) → tool (可能多个)
-        
+
+        注意：此方法将 Skill 注入的 user 消息也视为新一轮，可能导致错误。
+        建议使用 _identify_conversation_rounds 代替。
+
         Args:
             conversation_history: 对话历史
-            
+
         Returns:
             按轮次分组的消息列表
         """
         rounds = []
         current_round = []
-        
+
         for msg in conversation_history:
             # 跳过系统消息（压缩产生的摘要）
             if msg.get('role') == 'system':
                 continue
-            
+
             # user 消息标志新一轮开始
             if msg.get('role') == 'user':
                 if current_round:  # 保存上一轮
@@ -183,11 +205,58 @@ class MemoryManager:
                 current_round = [msg]  # 开始新一轮
             else:
                 current_round.append(msg)
-        
+
         # 保存最后一轮
         if current_round:
             rounds.append(current_round)
-        
+
+        return rounds
+
+    def _identify_conversation_rounds(self, conversation_history: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+        """
+        识别真正的对话轮次（用户输入 → 任务完成）。
+
+        与 _identify_rounds 不同，此方法：
+        1. 将 Skill 注入的 user 消息归属到当前轮次，而非视为新一轮
+        2. 正确区分"对话轮次"（用户意图）和"思考轮次"（LLM 循环）
+
+        一轮对话包括：
+        1. 用户输入（role="user"，非 Skill 注入）
+        2. 可能的 Skill 注入（包含 <skill-loaded> 标记）
+        3. 多轮思考（role="assistant" + tool_calls + tool）
+        4. 最终回复（role="assistant"，无 tool_calls）
+
+        Args:
+            conversation_history: 对话历史
+
+        Returns:
+            按对话轮次分组的消息列表
+        """
+        rounds = []
+        current_round = []
+
+        for msg in conversation_history:
+            # 跳过系统消息（压缩产生的摘要）
+            if msg.get('role') == 'system':
+                continue
+
+            if msg.get('role') == 'user':
+                # 使用 is_skill_injection_content 检测 Skill 注入
+                if is_skill_injection_content(msg.get('content', '')):
+                    # Skill 注入，归属到当前轮次
+                    current_round.append(msg)
+                else:
+                    # 真正的用户输入，开始新一轮对话
+                    if current_round:
+                        rounds.append(current_round)
+                    current_round = [msg]
+            else:
+                current_round.append(msg)
+
+        # 保存最后一轮
+        if current_round:
+            rounds.append(current_round)
+
         return rounds
     
     def _generate_compressed_summary(self, messages: List[Dict[str, Any]], round_count: int) -> Dict[str, Any]:
@@ -209,6 +278,9 @@ class MemoryManager:
             包含压缩摘要的系统消息
         """
         # 重新按轮次组织
+        # 注意：这里使用 _identify_rounds 而非 _identify_conversation_rounds 是安全的，
+        # 因为 messages 参数已经经过 compress_history 过滤，不包含 Skill 注入消息。
+        # 在没有 Skill 注入的情况下，两种方法的行为等价。
         rounds = self._identify_rounds(messages)
         
         summary_lines = [
@@ -285,28 +357,36 @@ class MemoryManager:
     def _format_tool_args(self, tool_name: str, args_json: str) -> str:
         """
         格式化工具参数以便显示
-        
+
         Args:
-            tool_name: 工具名称
+            tool_name: 工具名称（PascalCase）
             args_json: 参数 JSON 字符串
-            
+
         Returns:
             简化的参数字符串
         """
         try:
             args = json.loads(args_json)
-            
-            # 针对不同工具的特殊处理
-            if tool_name == 'bash':
+
+            # 针对不同工具的特殊处理（使用 PascalCase）
+            if tool_name == 'Bash':
                 cmd = args.get('command', '')
                 return f'"{cmd[:80]}..."' if len(cmd) > 80 else f'"{cmd}"'
-            elif tool_name == 'run_python_code':
-                code = args.get('code', '')
-                files = args.get('input_files', [])
-                code_preview = code[:50].replace('\n', ' ')
-                if files:
-                    return f'code="{code_preview}...", files={files}'
-                return f'code="{code_preview}..."'
+            elif tool_name == 'Read':
+                path = args.get('path', '')
+                limit = args.get('limit', 2000)
+                return f'path="{path}", limit={limit}'
+            elif tool_name == 'Write':
+                path = args.get('path', '')
+                size = len(args.get('content', ''))
+                return f'path="{path}", {size} chars'
+            elif tool_name == 'List':
+                path = args.get('path', '.')
+                pattern = args.get('pattern', '*')
+                return f'path="{path}", pattern="{pattern}"'
+            elif tool_name == 'Skill':
+                skill = args.get('skill', '')
+                return f'skill="{skill}"'
             else:
                 # 通用处理：只显示键名
                 keys = list(args.keys())
