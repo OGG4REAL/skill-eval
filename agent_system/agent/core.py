@@ -17,6 +17,11 @@ from ..tools.base import ToolRegistry, ClientSideToolResult
 from ..skills.manager import SkillManager
 from ..config import Config
 
+# 从 Config 类获取常量
+PERSISTED_OUTPUT_THRESHOLD = Config.PERSISTED_OUTPUT_THRESHOLD
+PERSISTED_OUTPUT_PREVIEW_SIZE = Config.PERSISTED_OUTPUT_PREVIEW_SIZE
+TOOL_RESULTS_DIR_NAME = Config.TOOL_RESULTS_DIR_NAME
+
 
 # 回调类型定义
 LogCallback = Callable[[str, str], None]  # (event_type, message)
@@ -90,6 +95,56 @@ class Agent:
         except Exception as e:
             console.print(f"[yellow]警告：扫描上传目录失败: {e}[/yellow]")
             return ""
+
+    def _persist_tool_output(self, result_str: str, tool_call_id: str, tool_name: str) -> str:
+        """
+        L1 门卫：检查工具输出大小，超过阈值则持久化到文件
+
+        参考 Claude Code 的 persisted-output 机制：
+        - 工具结果超过 8KB 时，完整输出存入磁盘
+        - 只将 ~2KB 预览（包裹在 <persisted-output> 标签中）写入 LLM 上下文
+        - LLM 如需更多细节，可通过 Read 工具读取持久化文件
+
+        Args:
+            result_str: 工具返回的原始字符串
+            tool_call_id: 工具调用 ID
+            tool_name: 工具名称
+
+        Returns:
+            如果超过阈值，返回预览格式字符串；否则返回原始 result_str
+        """
+        if len(result_str) <= PERSISTED_OUTPUT_THRESHOLD:
+            return result_str
+
+        # 确保 .tool-results 目录存在
+        tool_results_dir = self.log_file.parent / TOOL_RESULTS_DIR_NAME
+        tool_results_dir.mkdir(parents=True, exist_ok=True)
+
+        # 写入完整输出到文件
+        output_file = tool_results_dir / f"{tool_call_id}.txt"
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(result_str)
+
+            # 生成预览格式
+            size_kb = len(result_str) / 1024
+            preview = result_str[:PERSISTED_OUTPUT_PREVIEW_SIZE]
+
+            preview_str = f"""<persisted-output>
+Output too large ({size_kb:.1f}KB). Full output saved to:
+{TOOL_RESULTS_DIR_NAME}/{tool_call_id}.txt
+
+Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
+{preview}
+... [truncated]
+</persisted-output>"""
+
+            console.print(f"  [yellow]工具输出已持久化 ({size_kb:.1f}KB -> {TOOL_RESULTS_DIR_NAME}/{tool_call_id}.txt)[/yellow]")
+            return preview_str
+
+        except Exception as e:
+            console.print(f"  [red]持久化失败: {e}，返回原始输出[/red]")
+            return result_str
 
     def _init_log_file(self):
         """初始化日志文件"""
@@ -389,7 +444,10 @@ class Agent:
                         console.print(f"  工具执行成功（返回 {len(result_str)} 字符）")
                         if result_str.strip():
                             console.print("  工具输出:", style="dim")
-                            console.print(result_str, markup=False, soft_wrap=True)
+                            if len(result_str) > 2000:
+                                console.print(result_str[:2000] + f"\n... [省略 {len(result_str)-2000} 字符]", markup=False, soft_wrap=True)
+                            else:
+                                console.print(result_str, markup=False, soft_wrap=True)
                         
                         # 记录执行结果（截断过长的内容）
                         if len(result_str) > 2000:
@@ -406,7 +464,10 @@ class Agent:
                         console.print(f"  [red]{result_str}[/red]")
                         execution_log.append(f"  {result_str}")
                         _emit("error", result_str)
-                
+
+                # L1 门卫：检查并持久化大输出
+                result_str = self._persist_tool_output(result_str, tool_call["id"], tool_name)
+
                 # 添加工具结果到对话历史
                 self.conversation_history.append({
                     "role": "tool",

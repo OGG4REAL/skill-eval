@@ -52,7 +52,24 @@ class Config:
     MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "30"))
     TEMPERATURE = 0.7
     MAX_TOKENS = 4000
-    
+
+    # =========================================================================
+    # 上下文预算管理常量
+    # =========================================================================
+
+    # L1: Persisted-Output 机制
+    # 工具结果超过此阈值时，完整输出存入磁盘，只传预览给 LLM
+    PERSISTED_OUTPUT_THRESHOLD = int(os.getenv("PERSISTED_OUTPUT_THRESHOLD", "8192"))  # 8KB
+    PERSISTED_OUTPUT_PREVIEW_SIZE = int(os.getenv("PERSISTED_OUTPUT_PREVIEW_SIZE", "2048"))  # 2KB 预览
+
+    # L2: Token 预算（以 DeepSeek 64K 为例）
+    # 总上下文 64K × 0.85 安全系数 = ~54K 可用
+    CONTEXT_TOKEN_BUDGET = int(os.getenv("CONTEXT_TOKEN_BUDGET", "54000"))
+    TOKEN_SAFETY_FACTOR = 1.3  # tiktoken -> 实际 LLM 的安全系数
+
+    # Persisted-Output 存储目录名（使用 . 前缀隐藏）
+    TOOL_RESULTS_DIR_NAME = ".tool-results"
+
     # 语言配置
     RESPONSE_LANGUAGE = os.getenv("RESPONSE_LANGUAGE", "zh-CN")
     

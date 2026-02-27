@@ -6,16 +6,31 @@ v2.0 改进：
 - Skill 注入保护：识别 <skill-loaded> 标记，保护 Skill 内容不被压缩
 - 多 Skill 替换：当存在多个 Skill 时，只保留最新的一个
 - 区分对话轮次：按真正的用户输入划分轮次，而非思考轮次
+
+v2.1 改进：
+- Token 预算感知：压缩后检查 token 数，超预算时减少保留轮次
+- 紧急截断：极端场景下的兜底机制
 """
 import json
 import re
 from typing import List, Dict, Any, Optional
+
+from rich.console import Console
 
 from ..constants import (
     SKILL_LOADED_TAG,
     is_skill_injection_content,
     extract_skill_name,
 )
+from .token_counter import TokenCounter
+from ..config import Config
+
+# 从 Config 类获取常量
+CONTEXT_TOKEN_BUDGET = Config.CONTEXT_TOKEN_BUDGET
+TOKEN_SAFETY_FACTOR = Config.TOKEN_SAFETY_FACTOR
+
+
+console = Console()
 
 
 class MemoryManager:
@@ -41,6 +56,7 @@ class MemoryManager:
         self.recent_window = recent_window
         self.recent_conversation_rounds = recent_conversation_rounds
         self.current_round = 0  # 当前对话轮次
+        self.token_counter = TokenCounter()  # Token 计数器
 
     # =========================================================================
     # Skill 检测方法
@@ -82,7 +98,8 @@ class MemoryManager:
         1. 分离：Skill 注入消息 vs 普通历史
         2. 多 Skill 替换：如果存在多个 Skill，只保留最新的一个
         3. Skill 注入消息始终保留，不参与压缩
-        4. 对普通历史进行滑动窗口压缩
+        4. 对普通历史进行滑动窗口压缩（带 Token 预算感知）
+        5. Token 预算检查 + 紧急截断（兜底）
 
         Args:
             conversation_history: 完整的对话历史
@@ -109,8 +126,8 @@ class MemoryManager:
             # 只保留最后一个（最新的）
             skill_injections = [skill_injections[-1]]
 
-        # 3. 对普通历史进行压缩
-        compressed_normal = self._super_compress(normal_history)
+        # 3. 对普通历史进行压缩（带 Token 预算感知）
+        compressed_normal = self._super_compress_with_budget(normal_history)
 
         # 4. 重组最终上下文
         # 顺序：[压缩摘要] -> [Skill 注入] -> [最近对话]
@@ -127,6 +144,12 @@ class MemoryManager:
 
         # 最近对话
         final_history.extend(compressed_normal)
+
+        # 5. Token 预算检查 + 紧急截断
+        total_tokens = self.token_counter.count_messages(final_history, TOKEN_SAFETY_FACTOR)
+        if total_tokens > CONTEXT_TOKEN_BUDGET:
+            console.print(f"[yellow]压缩后仍超预算 ({total_tokens} > {CONTEXT_TOKEN_BUDGET})，执行紧急截断[/yellow]")
+            final_history = self._emergency_truncate(final_history, CONTEXT_TOKEN_BUDGET)
 
         return final_history
 
@@ -173,6 +196,118 @@ class MemoryManager:
 
         # 返回：摘要 + 最近完整对话
         return [new_summary] + keep_messages
+
+    def _super_compress_with_budget(self, conversation_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        执行滑动窗口压缩，带 Token 预算感知
+
+        如果压缩后仍超预算，逐步减少 recent_conversation_rounds：
+        - 从 3 轮 → 2 轮 → 1 轮尝试
+
+        Args:
+            conversation_history: 对话历史
+
+        Returns:
+            压缩后的对话历史
+        """
+        if not conversation_history:
+            return []
+
+        # 提取现有的摘要消息
+        existing_summaries = [msg for msg in conversation_history if msg.get('role') == 'system' and 'Earlier Conversation Summary' in msg.get('content', '')]
+
+        # 识别对话轮次
+        rounds = self._identify_conversation_rounds(conversation_history)
+
+        # 如果总轮数不超过窗口大小，检查是否需要压缩
+        if len(rounds) <= self.recent_conversation_rounds:
+            # 即使不压缩，也检查 token 预算
+            tokens = self.token_counter.count_messages(conversation_history, TOKEN_SAFETY_FACTOR)
+            if tokens <= CONTEXT_TOKEN_BUDGET:
+                return conversation_history
+            # 超预算但没有更多轮次可压缩，返回原历史（由 emergency_truncate 处理）
+            return conversation_history
+
+        # 从当前配置开始，逐步尝试减少保留轮次
+        for keep_rounds in range(self.recent_conversation_rounds, 0, -1):
+            if len(rounds) <= keep_rounds:
+                result = conversation_history
+            else:
+                compress_round_count = len(rounds) - keep_rounds
+
+                compress_messages = []
+                keep_messages = []
+
+                for i, round_msgs in enumerate(rounds):
+                    if i < compress_round_count:
+                        compress_messages.extend(round_msgs)
+                    else:
+                        keep_messages.extend(round_msgs)
+
+                new_summary = self._generate_compressed_summary(compress_messages, compress_round_count)
+
+                if existing_summaries:
+                    combined_content = existing_summaries[0]['content'] + "\n\n" + new_summary['content']
+                    new_summary['content'] = combined_content
+
+                result = [new_summary] + keep_messages
+
+            # 检查 token 预算
+            tokens = self.token_counter.count_messages(result, TOKEN_SAFETY_FACTOR)
+            if tokens <= CONTEXT_TOKEN_BUDGET:
+                if keep_rounds < self.recent_conversation_rounds:
+                    console.print(f"[dim]Token 预算感知：保留 {keep_rounds} 轮 ({tokens} tokens)[/dim]")
+                return result
+
+        # 如果保留 1 轮仍超预算，返回最简结果（由 emergency_truncate 处理）
+        return result
+
+    def _emergency_truncate(self, conversation_history: List[Dict[str, Any]],
+                            token_budget: int) -> List[Dict[str, Any]]:
+        """
+        紧急截断：从最旧的非 system 消息开始删除，直到满足 token 预算
+
+        这是最后的兜底方案，当滑动窗口压缩后仍超预算时触发。
+
+        Args:
+            conversation_history: 对话历史
+            token_budget: token 预算上限
+
+        Returns:
+            截断后的对话历史（包含警告消息）
+        """
+        result = list(conversation_history)
+        warning_msg = {
+            "role": "system",
+            "content": "[系统提示] 由于上下文空间不足，部分早期对话已被移除。如需引用这些内容，请重新提供。"
+        }
+
+        # 计算当前 token 数
+        current_tokens = self.token_counter.count_messages(result, TOKEN_SAFETY_FACTOR)
+
+        # 从最旧的非 system/non-skill-injection 消息开始删除
+        while current_tokens > token_budget and len(result) > 1:
+            # 找到第一个可删除的消息（跳过 system 和 Skill 注入）
+            for i, msg in enumerate(result):
+                if msg.get("role") == "system":
+                    continue
+                if self._is_skill_injection(msg):
+                    continue
+                # 找到可删除的消息
+                deleted = result.pop(i)
+                console.print(f"[yellow]紧急截断：删除消息 {i} (role={deleted.get('role')})[/yellow]")
+                break
+            else:
+                # 没有可删除的消息了
+                break
+
+            current_tokens = self.token_counter.count_messages(result, TOKEN_SAFETY_FACTOR)
+
+        # 在开头插入警告（如果实际发生了截断）
+        if len(result) < len(conversation_history):
+            result.insert(0, warning_msg)
+
+        return result
     
     def _identify_rounds(self, conversation_history: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
         """
