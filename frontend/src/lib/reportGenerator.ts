@@ -14,6 +14,7 @@ import type {
 // ─── 数据提取 ────────────────────────────────────────────────
 
 export interface ReportSection {
+  question?: string;
   content: string;
   notifications: ShowNotificationArgs[];
   charts: RenderChartArgs[];
@@ -22,16 +23,22 @@ export interface ReportSection {
 
 export function extractReportContent(messages: ChatMessage[]): ReportSection[] {
   const sections: ReportSection[] = [];
+  let pendingQuestion: string | undefined;
 
   for (const msg of messages) {
-    if (msg.role !== 'assistant') continue;
+    if (msg.role === 'user') {
+      pendingQuestion = msg.content?.trim() || undefined;
+      continue;
+    }
 
     const section: ReportSection = {
+      question: pendingQuestion,
       content: msg.content ?? '',
       notifications: [],
       charts: [],
       tables: [],
     };
+    pendingQuestion = undefined;
 
     for (const tc of msg.toolCalls ?? []) {
       if (tc.name === 'render_chart')
@@ -234,6 +241,22 @@ body {
 }
 .report-header .meta { color: #666; font-size: 13px; }
 
+/* 用户问题 */
+.user-question {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: rgba(84,112,198,0.08);
+  border: 1px solid rgba(84,112,198,0.18);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  font-size: 15px; color: #b0c4ef;
+}
+.user-question .q-icon {
+  flex-shrink: 0; font-size: 15px; font-weight: 700;
+  color: #5470c6; line-height: 1.7;
+}
+.user-question .q-text { line-height: 1.7; }
+
 /* 分区分隔 */
 .section-sep {
   border: none; border-top: 1px dashed rgba(255,255,255,0.08);
@@ -334,6 +357,8 @@ tr:hover td { background: rgba(255,255,255,0.03); }
   .notification.warning { background: #fffbeb; border-color: #f59e0b; color: #92400e; }
   .notification.error   { background: #fef2f2; border-color: #ef4444; color: #991b1b; }
   .notification.success { background: #f0fdf4; border-color: #22c55e; color: #166534; }
+  .user-question { background: #eff6ff; border-color: #93b4e8; color: #1e3a5f; }
+  .user-question .q-icon { color: #2563eb; }
   .chart-wrapper, .table-wrapper { background: #f9f9f9; border-color: #ddd; }
   th { color: #555; } td { color: #333; }
 }
@@ -354,6 +379,14 @@ export function generateReportHtml(
   // 渲染各 section
   const sectionsHtml = sections.map((section, sIdx) => {
     let html = '';
+
+    if (section.question) {
+      html += `
+<div class="user-question">
+  <span class="q-icon">用户：</span>
+  <span class="q-text">${htmlEscape(section.question)}</span>
+</div>`;
+    }
 
     if (section.notifications.length) {
       html += renderNotifications(section.notifications);

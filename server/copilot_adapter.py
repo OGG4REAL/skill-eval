@@ -24,6 +24,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from agent_system.agent.core import Agent, LogCallback
+from agent_system.agent.llm_client import LLMClient
 from agent_system.skills.manager import SkillManager
 from agent_system.tools import ToolRegistry, register_ui_tools, create_mcp_tools, MCPClient
 from agent_system.tools.skill_tool import SkillTool
@@ -475,11 +476,30 @@ class CopilotBackend:
             yield SSEEvent("error", {"message": error}).to_sse()
         elif result:
             # 发送最终回复
+            agent_response = result.get("response", "")
             yield SSEEvent("text", {
                 "type": "response",
-                "content": result.get("response", ""),
+                "content": agent_response,
                 "iterations": result.get("iterations", 0)
             }).to_sse()
+            
+            # 生成追问建议（独立 LLM 调用，失败不影响主流程）
+            try:
+                notifications = [
+                    tool["arguments"]["message"]
+                    for tool in result.get("client_side_tools", [])
+                    if tool["tool_name"] == "show_notification"
+                    and "message" in tool.get("arguments", {})
+                ]
+                suggestions = generate_follow_up_suggestions(
+                    user_query=user_message,
+                    agent_response=agent_response,
+                    notifications=notifications,
+                )
+                if suggestions:
+                    yield SSEEvent("suggestions", {"questions": suggestions}).to_sse()
+            except Exception:
+                pass
         
         # 发送完成事件
         yield SSEEvent("done", {"session_id": session_id}).to_sse()
@@ -530,6 +550,83 @@ class CopilotBackend:
                 self._stats["active_sessions"] = len(self._agent_cache)
                 return True
         return False
+
+
+# ============================================================================
+# 追问建议生成（独立于 Agent 主流程）
+# ============================================================================
+
+_suggestion_llm: Optional[LLMClient] = None
+
+
+def _get_suggestion_llm() -> LLMClient:
+    """懒加载共享 LLMClient 实例，避免每次请求都创建新连接"""
+    global _suggestion_llm
+    if _suggestion_llm is None:
+        _suggestion_llm = LLMClient()
+    return _suggestion_llm
+
+
+def generate_follow_up_suggestions(
+    user_query: str,
+    agent_response: str,
+    notifications: List[str],
+) -> List[str]:
+    """
+    基于本轮对话生成 2-3 个追问建议，供用户点击继续对话。
+
+    完全独立于 Agent 主流程：不进入 conversation_history，不走工具循环。
+    使用低 temperature + 小 max_tokens 控制成本。
+
+    Args:
+        user_query: 用户原始问题
+        agent_response: Agent 最终回复全文
+        notifications: show_notification 工具的 message 列表
+
+    Returns:
+        建议问题列表（2-3 个），生成失败时返回空列表
+    """
+    notification_block = ""
+    if notifications:
+        items = "\n".join(f"- {n}" for n in notifications)
+        notification_block = f"\n关键发现/提醒：\n{items}"
+
+    prompt = f"""基于以下对话，生成 2-3 个用户最可能想要继续追问的问题。
+
+用户问题：{user_query}
+
+助手回复：{agent_response}
+{notification_block}
+
+要求：
+- 每个问题简短自然，不超过25个字
+- 问题要有实际分析价值，引导更深层的探索
+- 不要重复助手已经回答过的内容
+- 严格以 JSON 数组格式返回，如 ["问题1", "问题2", "问题3"]
+- 只返回 JSON 数组，不要有任何其他文字"""
+
+    try:
+        llm = _get_suggestion_llm()
+        result = llm.chat(
+            messages=[{"role": "user", "content": prompt}],
+            tools=None,
+            temperature=0.3,
+            max_tokens=200,
+        )
+        raw = (result.get("content") or "").strip()
+        # 提取 JSON 数组（兼容 LLM 可能包裹在 markdown code block 中的情况）
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        suggestions = json.loads(raw)
+        if isinstance(suggestions, list) and all(isinstance(s, str) for s in suggestions):
+            return suggestions[:3]
+    except Exception as e:
+        print(f"[FollowUp] 生成追问建议失败: {e}")
+
+    return []
 
 
 # ============================================================================

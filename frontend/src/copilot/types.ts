@@ -92,5 +92,6 @@ export interface ChatMessage {
   content: string;
   thinking?: ThinkingStep[];
   toolCalls?: SSEToolCallEvent[];
+  suggestedQuestions?: string[];
   timestamp: number;
 }

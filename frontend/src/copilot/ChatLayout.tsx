@@ -55,9 +55,9 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
       .catch(() => setUploads([]));
   }, [sessionId]);
 
-  // 发送消息
-  const handleSendMessage = async () => {
-    const trimmedInput = inputValue.trim();
+  // 发送消息（overrideInput 用于追问建议点击，绕过 inputValue 状态）
+  const handleSendMessage = async (overrideInput?: string) => {
+    const trimmedInput = (overrideInput ?? inputValue).trim();
     if (!trimmedInput || isLoading || !sessionId) return;
 
     // 添加用户消息
@@ -103,6 +103,8 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
       let assistantContent = '';
       const thinkingSteps: ThinkingStep[] = [];
       const collectedToolCalls: SSEToolCallEvent[] = [];
+      let collectedSuggestions: string[] = [];
+      let currentEventType = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -114,14 +116,18 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {
-            // 解析 SSE 事件类型
+            currentEventType = line.slice(7).trim();
             continue;
           }
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'thinking') {
+
+              if (currentEventType === 'suggestions') {
+                if (Array.isArray(data.questions)) {
+                  collectedSuggestions = data.questions;
+                }
+              } else if (data.type === 'thinking') {
                 const step: ThinkingStep = {
                   id: generateId(),
                   type: 'thinking',
@@ -151,7 +157,6 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
               } else if (data.type === 'response') {
                 assistantContent = data.content;
               } else if (data.name) {
-                // 客户端工具调用
                 collectedToolCalls.push({
                   name: data.name,
                   arguments: data.arguments,
@@ -161,6 +166,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
             } catch {
               // 忽略解析错误
             }
+            currentEventType = '';
           }
         }
       }
@@ -172,6 +178,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
         content: assistantContent,
         thinking: thinkingSteps,
         toolCalls: collectedToolCalls,
+        suggestedQuestions: collectedSuggestions.length > 0 ? collectedSuggestions : undefined,
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, assistantMessage]);
@@ -225,6 +232,12 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // 点击追问建议
+  const handleSuggestionClick = (question: string) => {
+    if (isLoading || !sessionId) return;
+    handleSendMessage(question);
   };
 
   // 渲染工具调用结果
@@ -441,6 +454,47 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
                     {message.toolCalls.map((toolCall, index) => renderToolCall(toolCall, index))}
                   </div>
                 )}
+
+                {/* 追问建议 */}
+                {message.suggestedQuestions && message.suggestedQuestions.length > 0 && !isLoading && (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginTop: '14px',
+                    animation: 'fadeIn 0.4s ease-out',
+                  }}>
+                    {message.suggestedQuestions.map((q, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSuggestionClick(q)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '999px',
+                          border: '1px solid rgba(84, 112, 198, 0.4)',
+                          background: 'rgba(84, 112, 198, 0.08)',
+                          color: 'rgba(255, 255, 255, 0.8)',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          lineHeight: 1.4,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(84, 112, 198, 0.2)';
+                          e.currentTarget.style.borderColor = 'rgba(84, 112, 198, 0.6)';
+                          e.currentTarget.style.color = 'rgba(255, 255, 255, 0.95)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(84, 112, 198, 0.08)';
+                          e.currentTarget.style.borderColor = 'rgba(84, 112, 198, 0.4)';
+                          e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)';
+                        }}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -511,7 +565,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
             }}
           />
           <button
-            onClick={handleSendMessage}
+            onClick={() => handleSendMessage()}
             disabled={isLoading || !inputValue.trim() || !sessionId}
             style={{
               display: 'flex',
