@@ -77,6 +77,10 @@ async def main() -> None:
         "--port",
         "8000",
         "--reload",
+        "--reload-dir",
+        "server",
+        "--reload-dir",
+        "agent_system",
     ]
     frontend_cmd = [NPM_EXEC, "run", "dev", "--", "--host", "0.0.0.0"]
 

@@ -270,7 +270,12 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
                 error_msg = f"LLM 调用失败：{e}"
                 console.print(f"[red]{error_msg}[/red]")
                 execution_log.append(error_msg)
-                return error_msg
+                _emit("error", error_msg)
+                return {
+                    "response": error_msg,
+                    "client_side_tools": [],
+                    "iterations": iteration
+                }
             
             # 处理响应
             assistant_message = {
