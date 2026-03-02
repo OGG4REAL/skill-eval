@@ -38,10 +38,6 @@ RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r /app/requirements
 # 复制 MCP Server
 COPY server.py /app/
 
-# 创建非 root 用户
-RUN useradd -m sandbox
-USER sandbox
-
 WORKDIR /workspace
 
 # 启动 MCP Server（通过 stdio 通信）
