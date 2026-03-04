@@ -145,7 +145,8 @@ class RenderTableTool(BaseTool):
 
 重要说明：
 - 此工具为客户端渲染，调用后无需等待结果
-- 禁止输出原始 ASCII 表格或 JSON dumps"""
+- 禁止输出原始 ASCII 表格或 JSON dumps
+- percentage 列的值必须传已乘 100 的数值（如 32.44 表示 32.44%），禁止传小数形式（如 0.3244）"""
     
     @property
     def parameters(self) -> Dict:
@@ -173,7 +174,7 @@ class RenderTableTool(BaseTool):
                             "type": {
                                 "type": "string",
                                 "enum": ["string", "number", "date", "currency", "percentage"],
-                                "description": "数据类型，用于格式化显示"
+                                "description": "数据类型，用于格式化显示。percentage 类型请传已乘 100 的数值（如 20.37 代表 20.37%），前端自动追加 % 符号"
                             },
                             "sortable": {
                                 "type": "boolean",
