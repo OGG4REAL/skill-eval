@@ -1,8 +1,9 @@
 import React from 'react';
+import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 
 interface ChartData {
-  type: string;
+  type: 'line' | 'bar' | 'pie';
   title: string;
   xAxis?: {
     categories?: string[];
@@ -25,11 +26,11 @@ interface Props {
 export const ChartRenderer: React.FC<Props> = ({ charts }) => {
   if (!charts || charts.length === 0) return null;
 
-  const getOption = (chart: ChartData) => {
+  const getOption = (chart: ChartData): EChartsOption => {
     // 定义一套现代化的深色主题颜色
     const colors = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4'];
 
-    const commonOption: any = {
+    const commonOption: EChartsOption = {
       backgroundColor: 'transparent',
       color: colors,
       title: {

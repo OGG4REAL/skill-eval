@@ -9,6 +9,7 @@ CopilotKit 适配器模块 (Phase 2)
 """
 import asyncio
 import json
+import subprocess
 import time
 import traceback
 from datetime import datetime
@@ -210,9 +211,79 @@ class CopilotBackend:
             "cache_misses": 0,
             "errors": 0
         }
+
+        # 启动时回收当前项目残留的 mcp-* 容器，避免异常退出后容器泄漏。
+        self._cleanup_orphan_containers()
         
         # Phase 3: 启动后台定时清理线程（解决 TTLCache 懒惰驱逐问题）
         self._start_cleanup_timer(cleanup_interval)
+
+    def _cleanup_orphan_containers(self):
+        """清理挂载到当前 sessions 目录、但已脱离后端缓存控制的孤儿容器。"""
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "--format", "{{.Names}}"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+        except Exception as e:
+            print(f"[CopilotBackend] 跳过孤儿容器清理：{e}")
+            return
+
+        if result.returncode != 0:
+            print(f"[CopilotBackend] docker ps 失败：{result.stderr.strip()}")
+            return
+
+        sessions_root = Config.SESSIONS_ROOT.resolve()
+        for raw_name in result.stdout.splitlines():
+            container_name = raw_name.strip()
+            if not container_name.startswith("mcp-"):
+                continue
+
+            try:
+                inspect = subprocess.run(
+                    ["docker", "inspect", container_name],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=10,
+                )
+                if inspect.returncode != 0:
+                    continue
+
+                payload = json.loads(inspect.stdout)
+                mounts = payload[0].get("Mounts", []) if payload else []
+                belongs_to_project = False
+                for mount in mounts:
+                    source = mount.get("Source")
+                    if not source:
+                        continue
+                    try:
+                        source_path = Path(source).resolve()
+                    except Exception:
+                        continue
+                    if sessions_root in (source_path, *source_path.parents):
+                        belongs_to_project = True
+                        break
+
+                if not belongs_to_project:
+                    continue
+
+                subprocess.run(
+                    ["docker", "rm", "-f", container_name],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=10,
+                )
+                print(f"[CopilotBackend] Removed orphan MCP container: {container_name}")
+            except Exception as e:
+                print(f"[CopilotBackend] 清理孤儿容器 {container_name} 失败: {e}")
 
     def _start_cleanup_timer(self, interval: int):
         """
@@ -279,6 +350,8 @@ class CopilotBackend:
             if session_id in self._agent_cache:
                 entry = self._agent_cache[session_id]
                 entry.touch()
+                # TTLCache 默认是硬过期；重新赋值一次以实现“无活动时间”语义。
+                self._agent_cache[session_id] = entry
                 self._stats["cache_hits"] += 1
                 return entry.agent
             
@@ -659,7 +732,7 @@ def create_copilot_router(backend: Optional[CopilotBackend] = None) -> APIRouter
             "agents": [
                 {
                     "name": "default",
-                    "description": "CSV Data Summarizer Agent - AI驱动的数据分析助手"
+                    "description": "Agent Studio - AI驱动的智能体测试与展示工坊"
                 }
             ],
             "coagents": [],

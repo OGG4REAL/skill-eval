@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import type { ComponentProps } from "react";
 import "./App.css";
 import {
   createSession,
@@ -19,12 +20,22 @@ function formatBytes(size: number) {
 }
 
 // 去除 ANSI 颜色代码
-const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "");
+const ANSI_ESCAPE_PATTERN = new RegExp(String.raw`\u001b\[[0-9;]*m`, "g");
+const stripAnsi = (str: string) => str.replace(ANSI_ESCAPE_PATTERN, "");
+
+type ChartData = ComponentProps<typeof ChartRenderer>["charts"][number];
+
+interface AnalysisSummary {
+  rows: number;
+  cols: number;
+  missing_cells: number;
+  missing_pct: number;
+}
 
 interface AnalysisResult {
-  summary: any;
-  columns: any[];
-  charts: any[];
+  summary: AnalysisSummary;
+  columns: Array<Record<string, unknown>>;
+  charts: ChartData[];
 }
 
 export default function App() {
@@ -34,10 +45,10 @@ export default function App() {
   const [logs, setLogs] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [eventSource, setEventSource] = useState<EventSource | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   
   // 使用 useRef 而不是 useState 来避免闭包问题
+  const eventSourceRef = useRef<EventSource | null>(null);
   const jsonBufferRef = useRef("");
   const isCollectingJsonRef = useRef(false);
   const hasResultRef = useRef(false); // 标记是否已成功解析过结果
@@ -53,7 +64,7 @@ export default function App() {
     jsonBufferRef.current = "";
     isCollectingJsonRef.current = false;
     hasResultRef.current = false; // 重置结果标记
-    eventSource?.close();
+    eventSourceRef.current?.close();
     
     if (!selectedSession) return;
     
@@ -102,8 +113,13 @@ export default function App() {
       }
     });
     
-    setEventSource(es);
-    return () => es.close();
+    eventSourceRef.current = es;
+    return () => {
+      es.close();
+      if (eventSourceRef.current === es) {
+        eventSourceRef.current = null;
+      }
+    };
   }, [selectedSession]);
 
   // 自动滚动日志

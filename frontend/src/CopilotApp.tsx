@@ -8,7 +8,7 @@
  * 2. 不依赖 CopilotKit 的 useCopilotChat hooks
  * 3. 后续如果需要 useCopilotReadable 等功能，再集成 CopilotKit 标准协议
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { ChatLayout } from './copilot';
 import { createSession, listSessions } from './lib/api';
 import type { SessionSummary } from './types';
@@ -30,20 +30,21 @@ export default function CopilotApp() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
 
-  // 加载会话列表
-  const loadSessions = useCallback(async () => {
-    try {
-      const list = await listSessions();
-      setSessions(list);
-    } catch (error) {
-      console.error('加载会话列表失败:', error);
-    }
-  }, []);
-
   // 首次加载会话列表
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+    let active = true;
+    listSessions()
+      .then((list) => {
+        if (!active) return;
+        setSessions(list);
+      })
+      .catch((error) => {
+        console.error('加载会话列表失败:', error);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // 如果没有 sessionId，创建新会话
   useEffect(() => {
@@ -54,7 +55,11 @@ export default function CopilotApp() {
         if (!active) return;
         localStorage.setItem('copilot_session_id', id);
         setSessionId(id);
-        loadSessions(); // 刷新列表
+        return listSessions();
+      })
+      .then((list) => {
+        if (!active || !list) return;
+        setSessions(list);
       })
       .catch((error) => {
         console.error('创建会话失败:', error);
@@ -62,27 +67,30 @@ export default function CopilotApp() {
     return () => {
       active = false;
     };
-  }, [sessionId, loadSessions]);
+  }, [sessionId]);
 
   // 切换会话
   const handleSwitchSession = (newSessionId: string) => {
     localStorage.setItem('copilot_session_id', newSessionId);
+    const url = new URL(window.location.href);
+    url.searchParams.set('session', newSessionId);
+    window.history.replaceState({}, '', url.toString());
     setSessionId(newSessionId);
     setShowSessionPicker(false);
-    // 刷新页面以清空前端状态
-    window.location.reload();
   };
 
   // 创建新会话
   const handleNewSession = async () => {
     try {
       const newId = await createSession();
+      const nextSessions = await listSessions();
       localStorage.setItem('copilot_session_id', newId);
+      const url = new URL(window.location.href);
+      url.searchParams.set('session', newId);
+      window.history.replaceState({}, '', url.toString());
       setSessionId(newId);
+      setSessions(nextSessions);
       setShowSessionPicker(false);
-      loadSessions();
-      // 刷新页面以清空前端状态
-      window.location.reload();
     } catch (error) {
       console.error('创建会话失败:', error);
     }

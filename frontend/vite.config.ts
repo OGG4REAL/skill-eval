@@ -9,24 +9,30 @@ export default defineConfig({
     proxy: {
       // CopilotKit API 代理
       '/copilotkit': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         secure: false,
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
+        configure: (proxy, options) => {
+          void options;
+          proxy.on('error', (err, req, res) => {
+            void req;
+            void res;
             console.log('proxy error', err);
           });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            void proxyReq;
+            void res;
             console.log('Sending Request:', req.method, req.url);
           });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            void res;
             console.log('Received Response:', proxyRes.statusCode, req.url);
           });
         },
       },
       // 原有 API 代理
       '/sessions': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         secure: false,
       },

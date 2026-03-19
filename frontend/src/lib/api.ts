@@ -1,6 +1,12 @@
-import type { FileInfo, MessageResponse, SessionSummary } from "../types";
+import type {
+  FileInfo,
+  MessageResponse,
+  SessionSummary,
+  WorkspaceFileResponse,
+  WorkspaceTreeResponse,
+} from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8001";
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -40,6 +46,22 @@ export async function listUploads(sessionId: string): Promise<FileInfo[]> {
 
 export async function listOutputs(sessionId: string): Promise<FileInfo[]> {
   return handleResponse<FileInfo[]>(await fetch(`${API_BASE}/sessions/${sessionId}/outputs`));
+}
+
+export async function getWorkspace(sessionId: string): Promise<WorkspaceTreeResponse> {
+  return handleResponse<WorkspaceTreeResponse>(
+    await fetch(`${API_BASE}/sessions/${sessionId}/workspace`)
+  );
+}
+
+export async function getWorkspaceFile(
+  sessionId: string,
+  path: string
+): Promise<WorkspaceFileResponse> {
+  const params = new URLSearchParams({ path });
+  return handleResponse<WorkspaceFileResponse>(
+    await fetch(`${API_BASE}/sessions/${sessionId}/workspace/file?${params.toString()}`)
+  );
 }
 
 export function buildOutputUrl(sessionId: string, filename: string) {

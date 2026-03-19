@@ -14,7 +14,8 @@ interface ThinkingPanelProps {
 }
 
 // 去除 ANSI 颜色代码
-const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, '');
+const ANSI_ESCAPE_PATTERN = new RegExp(String.raw`\u001b\[[0-9;]*m`, 'g');
+const stripAnsi = (str: string) => str.replace(ANSI_ESCAPE_PATTERN, '');
 
 export function ThinkingPanel({ steps, isStreaming = false }: ThinkingPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);

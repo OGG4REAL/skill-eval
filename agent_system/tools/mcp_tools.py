@@ -55,19 +55,32 @@ class MCPClient:
         self._lock = threading.Lock()
         self._started = False
         self._initialized = False
+
+    @property
+    def _container_name(self) -> str:
+        return f"mcp-{self.session_id}"
+
+    def _remove_container(self):
+        """显式删除容器，避免 docker 客户端退出后容器残留。"""
+        try:
+            subprocess.run(
+                ["docker", "rm", "-f", self._container_name],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+        except Exception as e:
+            print(f"[MCP] 清理容器 {self._container_name} 失败: {e}")
     
     def _start_container(self):
         """启动 Docker 容器"""
         if self._process is not None and self._process.poll() is None:
             return
-        
-        container_name = f"mcp-{self.session_id}"
-        
+
         # 先尝试删除可能存在的同名容器
-        subprocess.run(
-            ["docker", "rm", "-f", container_name],
-            capture_output=True
-        )
+        self._remove_container()
         
         # 转换路径格式（Windows 兼容）
         workspace_mount = str(self.workspace_path.resolve()).replace("\\", "/")
@@ -76,7 +89,7 @@ class MCPClient:
         cmd = [
             "docker", "run",
             "--rm", "-i",
-            "--name", container_name,
+            "--name", self._container_name,
             "-v", f"{workspace_mount}:/workspace",
             "-v", f"{skills_mount}:/workspace/skills:ro",
             "--cpus", str(Config.DOCKER_CPUS),
@@ -86,7 +99,7 @@ class MCPClient:
             Config.SANDBOX_IMAGE,
         ]
         
-        print(f"[MCP] 启动容器 {container_name}...")
+        print(f"[MCP] 启动容器 {self._container_name}...")
         print(f"[MCP] 工作目录: {workspace_mount}")
         print(f"[MCP] Skills 目录: {skills_mount}")
         
@@ -270,22 +283,27 @@ class MCPClient:
                     self._response_queue.get_nowait()
                 except:
                     pass
+            self._remove_container()
         print(f"[MCP] [OK] 容器已重置，下次调用将重新启动")
     
     def cleanup(self):
         """停止容器"""
-        if self._process:
-            print("[MCP] 停止容器...")
-            try:
+        print(f"[MCP] 停止容器 {self._container_name}...")
+        try:
+            if self._process and self._process.stdin:
                 self._process.stdin.close()
+            if self._process:
                 self._process.terminate()
                 self._process.wait(timeout=5)
-            except:
+        except Exception:
+            if self._process:
                 self._process.kill()
-            finally:
-                self._process = None
-                self._started = False
-            print("[MCP] [OK] 容器已停止")
+        finally:
+            self._process = None
+            self._started = False
+            self._initialized = False
+            self._remove_container()
+        print(f"[MCP] [OK] 容器 {self._container_name} 已停止")
     
     def __del__(self):
         self.cleanup()

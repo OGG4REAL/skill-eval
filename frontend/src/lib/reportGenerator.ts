@@ -444,13 +444,13 @@ export function generateReportHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>报告 · ${sessionId} · ${timestamp}</title>
+  <title>Agent Studio 报告 · ${sessionId} · ${timestamp}</title>
   <style>${STYLES}</style>
 </head>
 <body>
   <div class="report-wrap">
     <header class="report-header">
-      <h1>📋 报告</h1>
+      <h1>Agent Studio 报告</h1>
       <p class="meta">生成时间：${timestamp}&emsp;|&emsp;会话：${htmlEscape(sessionId)}</p>
     </header>
     ${bodyContent || '<p style="color:#666;text-align:center">暂无内容</p>'}
@@ -476,7 +476,7 @@ export function downloadReport(sessionId: string, messages: ChatMessage[]): void
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `report-${sessionId}-${Date.now()}.html`;
+  link.download = `agent-studio-report-${sessionId}-${Date.now()}.html`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
