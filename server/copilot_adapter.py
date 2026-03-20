@@ -574,8 +574,11 @@ class CopilotBackend:
             except Exception:
                 pass
         
-        # 发送完成事件
-        yield SSEEvent("done", {"session_id": session_id}).to_sse()
+        # 发送完成事件（附加 run_id 供前端自动刷新）
+        done_data = {"session_id": session_id}
+        if result and "run_id" in result:
+            done_data["run_id"] = result["run_id"]
+        yield SSEEvent("done", done_data).to_sse()
     
     def get_debug_info(self) -> Dict[str, Any]:
         """

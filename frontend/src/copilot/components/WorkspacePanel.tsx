@@ -1,7 +1,9 @@
 import { ChevronDown, ChevronRight, Eye, FileText, FolderClosed, FolderOpen, PanelRightClose, RefreshCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import type { WorkspaceFileResponse, WorkspaceNode, WorkspaceTabKey } from "../../types";
+import type { ArtifactsRecord, EvalRecord, RunIndexEntry, RunRecord, TrajectoryEvent, WorkspaceFileResponse, WorkspaceNode, WorkspaceTabKey } from "../../types";
+import { TrajectoryPanel } from "./TrajectoryPanel";
+import { EvaluationPanel } from "./EvaluationPanel";
 
 interface WorkspacePanelProps {
   roots: WorkspaceNode[];
@@ -17,13 +19,24 @@ interface WorkspacePanelProps {
   onOpenViewer: () => void;
   onToggleOpen: () => void;
   onRefresh: () => void;
+  // Trajectory / Evaluation 数据
+  currentRun?: RunRecord | null;
+  currentTrajectory?: TrajectoryEvent[];
+  currentEval?: EvalRecord | null;
+  currentArtifacts?: ArtifactsRecord | null;
+  sessionRuns?: RunRecord[];
+  globalRuns?: RunIndexEntry[];
+  runLoading?: boolean;
+  activeRunId?: string | null;
+  onSelectRun?: (runId: string, sessionId?: string) => void;
+  onOpenRunFile?: (path: string) => void;
 }
 
 const TAB_OPTIONS: Array<{ key: WorkspaceTabKey; label: string }> = [
-  { key: "artifacts", label: "工件" },
   { key: "filesystem", label: "文件系统" },
   { key: "skills", label: "Skill" },
-  { key: "debug", label: "调试" },
+  { key: "trajectory", label: "Trajectory" },
+  { key: "evaluation", label: "Evaluation" },
 ];
 
 function formatFileSize(size?: number | null) {
@@ -61,20 +74,10 @@ function collectDirectoryPaths(nodes: WorkspaceNode[]): string[] {
 
 function filterRootsByTab(roots: WorkspaceNode[], tab: WorkspaceTabKey) {
   switch (tab) {
-    case "artifacts":
-      return roots.filter((node) => node.path === "/workspace/output");
     case "skills":
       return roots.filter((node) => node.path === "/workspace/skills");
-    case "debug":
-      return roots.filter((node) =>
-        [
-          "/workspace/temp",
-          "/workspace/.tool-results",
-          "/workspace/chat.log",
-          "/workspace/history.json",
-        ].includes(node.path)
-      );
     case "filesystem":
+      return roots;
     default:
       return roots;
   }
@@ -191,6 +194,16 @@ export function WorkspacePanel({
   onOpenViewer,
   onToggleOpen,
   onRefresh,
+  currentRun = null,
+  currentTrajectory = [],
+  currentEval = null,
+  currentArtifacts = null,
+  sessionRuns = [],
+  globalRuns = [],
+  runLoading = false,
+  activeRunId = null,
+  onSelectRun,
+  onOpenRunFile,
 }: WorkspacePanelProps) {
   const filteredRoots = useMemo(() => filterRootsByTab(roots, activeTab), [roots, activeTab]);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -315,152 +328,178 @@ export function WorkspacePanel({
       </header>
 
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: "auto",
-            padding: "16px 12px 12px",
-          }}
-        >
-          {loading ? <div style={{ color: "rgba(255,255,255,0.55)" }}>正在加载 Workspace...</div> : null}
-          {error ? (
+        {/* Trajectory / Evaluation 标签使用专用面板 */}
+        {activeTab === "trajectory" ? (
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 12px 12px" }}>
+            <TrajectoryPanel
+              run={currentRun}
+              trajectory={currentTrajectory}
+              evalResult={currentEval}
+              artifacts={currentArtifacts}
+              loading={runLoading}
+              onOpenFile={onOpenRunFile || onSelectFile}
+            />
+          </div>
+        ) : activeTab === "evaluation" ? (
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 12px 12px" }}>
+            <EvaluationPanel
+              sessionRuns={sessionRuns}
+              globalRuns={globalRuns}
+              loading={runLoading}
+              activeRunId={activeRunId}
+              onSelectRun={onSelectRun}
+            />
+          </div>
+        ) : (
+          <>
             <div
               style={{
-                padding: "14px",
-                borderRadius: "14px",
-                background: "rgba(255, 125, 125, 0.08)",
-                border: "1px solid rgba(255, 125, 125, 0.15)",
-                color: "rgba(255, 222, 222, 0.9)",
+                flex: 1,
+                minHeight: 0,
+                overflowY: "auto",
+                padding: "16px 12px 12px",
               }}
             >
-              {error}
-            </div>
-          ) : null}
-          {!loading && !error && filteredRoots.length === 0 ? (
-            <div style={{ color: "rgba(255,255,255,0.45)" }}>当前标签下暂无可展示内容。</div>
-          ) : null}
-          {!loading && !error
-            ? filteredRoots.map((node) => (
-                <TreeNode
-                  key={node.path}
-                  node={node}
-                  expandedPaths={expandedPaths}
-                  selectedPath={selectedPath}
-                  onToggle={togglePath}
-                  onSelectFile={onSelectFile}
-                />
-              ))
-            : null}
-        </div>
-
-        <div
-          style={{
-            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-            padding: "14px 14px 16px",
-            background: "rgba(255, 255, 255, 0.02)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
-              marginBottom: "10px",
-            }}
-          >
-            <div>
-              <div style={{ color: "#f4f7ff", fontSize: "13px", fontWeight: 600 }}>即时预览</div>
-              <div style={{ marginTop: "4px", color: "rgba(255,255,255,0.48)", fontSize: "11px" }}>
-                默认展示全文，可切到中间区聚焦查看
-              </div>
-            </div>
-            <button
-              onClick={onOpenViewer}
-              disabled={!previewFile}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "8px 10px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                background: previewFile ? "rgba(118, 165, 255, 0.14)" : "rgba(255, 255, 255, 0.04)",
-                color: previewFile ? "#f4f7ff" : "rgba(255, 255, 255, 0.32)",
-                cursor: previewFile ? "pointer" : "not-allowed",
-              }}
-            >
-              <Eye size={14} />
-              展开查看
-            </button>
-          </div>
-
-          <div
-            style={{
-              minHeight: "210px",
-              maxHeight: "260px",
-              overflowY: "auto",
-              borderRadius: "18px",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              background: "rgba(0, 0, 0, 0.22)",
-              padding: "14px",
-            }}
-          >
-            {previewLoading ? <div style={{ color: "rgba(255,255,255,0.55)" }}>正在读取文件...</div> : null}
-            {previewError ? (
-              <div style={{ color: "rgba(255, 209, 209, 0.92)", lineHeight: 1.6 }}>{previewError}</div>
-            ) : null}
-            {!previewLoading && !previewError && !previewFile ? (
-              <div style={{ color: "rgba(255,255,255,0.45)", lineHeight: 1.6 }}>
-                从上方文件树选择一个文件后，这里会展示即时预览。
-              </div>
-            ) : null}
-            {!previewError && previewFile ? (
-              <>
-                <div style={{ marginBottom: "12px" }}>
-                  <div
-                    style={{
-                      color: "#f3f7ff",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    {previewFile.path}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "8px",
-                      marginTop: "6px",
-                      fontSize: "11px",
-                      color: "rgba(255,255,255,0.48)",
-                    }}
-                  >
-                    <span>{formatFileSize(previewFile.size)}</span>
-                    <span>{formatDateTime(previewFile.modified)}</span>
-                    {previewFile.readonly ? <span>只读</span> : null}
-                  </div>
-                </div>
-                <pre
+              {loading ? <div style={{ color: "rgba(255,255,255,0.55)" }}>正在加载 Workspace...</div> : null}
+              {error ? (
+                <div
                   style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    fontSize: "12px",
-                    lineHeight: 1.6,
-                    color: "rgba(255,255,255,0.86)",
-                    fontFamily: '"SF Mono", "SFMono-Regular", ui-monospace, monospace',
+                    padding: "14px",
+                    borderRadius: "14px",
+                    background: "rgba(255, 125, 125, 0.08)",
+                    border: "1px solid rgba(255, 125, 125, 0.15)",
+                    color: "rgba(255, 222, 222, 0.9)",
                   }}
                 >
-                  {previewFile.content}
-                </pre>
-              </>
-            ) : null}
-          </div>
-        </div>
+                  {error}
+                </div>
+              ) : null}
+              {!loading && !error && filteredRoots.length === 0 ? (
+                <div style={{ color: "rgba(255,255,255,0.45)" }}>当前标签下暂无可展示内容。</div>
+              ) : null}
+              {!loading && !error
+                ? filteredRoots.map((node) => (
+                    <TreeNode
+                      key={node.path}
+                      node={node}
+                      expandedPaths={expandedPaths}
+                      selectedPath={selectedPath}
+                      onToggle={togglePath}
+                      onSelectFile={onSelectFile}
+                    />
+                  ))
+                : null}
+            </div>
+
+            <div
+              style={{
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                padding: "14px 14px 16px",
+                background: "rgba(255, 255, 255, 0.02)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                  marginBottom: "10px",
+                }}
+              >
+                <div>
+                  <div style={{ color: "#f4f7ff", fontSize: "13px", fontWeight: 600 }}>即时预览</div>
+                  <div style={{ marginTop: "4px", color: "rgba(255,255,255,0.48)", fontSize: "11px" }}>
+                    默认展示全文，可切到中间区聚焦查看
+                  </div>
+                </div>
+                <button
+                  onClick={onOpenViewer}
+                  disabled={!previewFile}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 10px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                    background: previewFile ? "rgba(118, 165, 255, 0.14)" : "rgba(255, 255, 255, 0.04)",
+                    color: previewFile ? "#f4f7ff" : "rgba(255, 255, 255, 0.32)",
+                    cursor: previewFile ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <Eye size={14} />
+                  展开查看
+                </button>
+              </div>
+
+              <div
+                style={{
+                  minHeight: "210px",
+                  maxHeight: "260px",
+                  overflowY: "auto",
+                  borderRadius: "18px",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "rgba(0, 0, 0, 0.22)",
+                  padding: "14px",
+                }}
+              >
+                {previewLoading ? <div style={{ color: "rgba(255,255,255,0.55)" }}>正在读取文件...</div> : null}
+                {previewError ? (
+                  <div style={{ color: "rgba(255, 209, 209, 0.92)", lineHeight: 1.6 }}>{previewError}</div>
+                ) : null}
+                {!previewLoading && !previewError && !previewFile ? (
+                  <div style={{ color: "rgba(255,255,255,0.45)", lineHeight: 1.6 }}>
+                    从上方文件树选择一个文件后，这里会展示即时预览。
+                  </div>
+                ) : null}
+                {!previewError && previewFile ? (
+                  <>
+                    <div style={{ marginBottom: "12px" }}>
+                      <div
+                        style={{
+                          color: "#f3f7ff",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {previewFile.path}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "8px",
+                          marginTop: "6px",
+                          fontSize: "11px",
+                          color: "rgba(255,255,255,0.48)",
+                        }}
+                      >
+                        <span>{formatFileSize(previewFile.size)}</span>
+                        <span>{formatDateTime(previewFile.modified)}</span>
+                        {previewFile.readonly ? <span>只读</span> : null}
+                      </div>
+                    </div>
+                    <pre
+                      style={{
+                        margin: 0,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        fontSize: "12px",
+                        lineHeight: 1.6,
+                        color: "rgba(255,255,255,0.86)",
+                        fontFamily: '"SF Mono", "SFMono-Regular", ui-monospace, monospace',
+                      }}
+                    >
+                      {previewFile.content}
+                    </pre>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );

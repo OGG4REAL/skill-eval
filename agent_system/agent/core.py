@@ -3,6 +3,7 @@ Agent 核心
 实现主对话循环和工具调用逻辑
 """
 import json
+import time
 from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +17,9 @@ from .memory import MemoryManager
 from ..tools.base import ToolRegistry, ClientSideToolResult
 from ..skills.manager import SkillManager
 from ..config import Config
+from ..evaluation.recorder import RunRecorder
+from ..evaluation.scorer import RuleScorer
+from ..evaluation.registry import RunsRegistry
 
 # 从 Config 类获取常量
 PERSISTED_OUTPUT_THRESHOLD = Config.PERSISTED_OUTPUT_THRESHOLD
@@ -67,7 +71,7 @@ class Agent:
         
         # 初始化日志文件
         self._init_log_file()
-        
+
         console.print(Panel(
             "[green]Agent 初始化完成[/green]\n\n" + 
             f"可用技能：{len(skill_manager.list_skills())} 个\n" +
@@ -214,8 +218,12 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
             - response: Agent 的最终回复文本
             - client_side_tools: 客户端工具调用列表 (如果有)
             - iterations: 实际迭代次数
+            - run_id: 本次运行 ID
         """
         max_iterations = max_iterations or Config.MAX_ITERATIONS
+        
+        # 初始化 RunRecorder
+        recorder = self._init_recorder(user_input)
         
         # 客户端工具调用收集器
         client_side_tool_calls: List[ClientSideToolResult] = []
@@ -247,256 +255,319 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
         execution_log = []
         
         iteration = 0
+        run_status = "passed"
         
-        while iteration < max_iterations:
-            iteration += 1
-            
-            console.print(f"\n[cyan]-> 第 {iteration} 轮思考...[/cyan]")
-            execution_log.append(f"\n-> 第 {iteration} 轮思考...")
-            _emit("thinking", f"第 {iteration} 轮思考...")
-            
-            # 构建消息列表（系统提示词 + 对话历史）
-            messages = [
-                {"role": "system", "content": self.system_prompt}
-            ] + self.conversation_history
-            
-            # 获取工具定义
-            tools = self.tool_registry.get_all_definitions()
-            
-            # 调用 LLM
-            try:
-                response = self.llm_client.chat(messages, tools=tools)
-            except Exception as e:
-                error_msg = f"LLM 调用失败：{e}"
-                console.print(f"[red]{error_msg}[/red]")
-                execution_log.append(error_msg)
-                _emit("error", error_msg)
-                return {
-                    "response": error_msg,
-                    "client_side_tools": [],
-                    "iterations": iteration
-                }
-            
-            # 处理响应
-            assistant_message = {
-                "role": "assistant",
-                "content": response.get("content")
-            }
-            
-            # 记录 LLM 的思考内容（如果有）
-            llm_content = response.get("content")
-            if llm_content:
-                console.print(f"[dim]LLM 思考: {llm_content[:200]}{'...' if len(llm_content) > 200 else ''}[/dim]")
-                execution_log.append("LLM 思考内容:")
-                execution_log.append(f"{llm_content}")
-                execution_log.append("")
-                _emit("thinking", llm_content)
-            
-            # 检查是否有工具调用
-            tool_calls = response.get("tool_calls", [])
-            
-            if not tool_calls:
-                # 没有工具调用，说明 Agent 已经完成任务
-                final_response = response.get("content") or "完成。"
+        try:
+            while iteration < max_iterations:
+                iteration += 1
                 
-                # 添加到历史
-                self.conversation_history.append(assistant_message)
-                self._save_history()  # 保存助手回复
+                console.print(f"\n[cyan]-> 第 {iteration} 轮思考...[/cyan]")
+                execution_log.append(f"\n-> 第 {iteration} 轮思考...")
+                _emit("thinking", f"第 {iteration} 轮思考...")
+                recorder.record_iteration_start(iteration)
                 
-                execution_log.append("Agent 完成任务（无需调用工具）")
+                # 构建消息列表（系统提示词 + 对话历史）
+                messages = [
+                    {"role": "system", "content": self.system_prompt}
+                ] + self.conversation_history
                 
-                # 保存到日志文件
-                self._log_interaction(user_input, final_response, iteration, execution_log)
+                # 获取工具定义
+                tools = self.tool_registry.get_all_definitions()
                 
-                console.print("\n[green]Agent 完成任务[/green]")
-                _emit("complete", final_response)
-                
-                # 返回结构化结果
-                return {
-                    "response": final_response,
-                    "client_side_tools": [
-                        {
-                            "tool_name": cst.tool_name,
-                            "arguments": cst.arguments,
-                            "description": cst.description
-                        }
-                        for cst in client_side_tool_calls
-                    ],
-                    "iterations": iteration
-                }
-            
-            # 有工具调用，需要执行工具
-            console.print(f"[yellow]需要调用 {len(tool_calls)} 个工具[/yellow]")
-            execution_log.append(f"需要调用 {len(tool_calls)} 个工具")
-            _emit("tool_call", f"需要调用 {len(tool_calls)} 个工具")
-            
-            # 添加助手消息（包含工具调用）
-            assistant_message["tool_calls"] = tool_calls
-            self.conversation_history.append(assistant_message)
-            self._save_history()  # 保存工具调用意图
-            
-            # 执行每个工具调用
-            for tool_call in tool_calls:
-                tool_name = tool_call["function"]["name"]
-                tool_args_str = tool_call["function"]["arguments"]
-                
-                # 解析参数
+                # 调用 LLM
+                llm_start = recorder.record_llm_call_start()
                 try:
-                    tool_args = json.loads(tool_args_str)
-                except json.JSONDecodeError:
-                    tool_args = {}
+                    response = self.llm_client.chat(messages, tools=tools)
+                    meta = response.get("_meta", {})
+                    recorder.record_llm_call_finish(
+                        llm_start,
+                        model=meta.get("model"),
+                        provider=meta.get("provider"),
+                        usage=meta.get("usage"),
+                    )
+                except Exception as e:
+                    recorder.record_llm_call_finish(llm_start)
+                    error_msg = f"LLM 调用失败：{e}"
+                    console.print(f"[red]{error_msg}[/red]")
+                    execution_log.append(error_msg)
+                    _emit("error", error_msg)
+                    run_status = "failed"
+                    return self._finalize_run(
+                        recorder, run_status, iteration,
+                        error_msg, [], client_side_tool_calls,
+                        user_input, execution_log
+                    )
                 
-                console.print(f"  -> 调用工具: [bold]{tool_name}[/bold]")
-                console.print(f"    参数: {tool_args}")
+                # 处理响应
+                assistant_message = {
+                    "role": "assistant",
+                    "content": response.get("content")
+                }
                 
-                # 记录工具调用
-                execution_log.append(f"  -> 调用工具: {tool_name}")
-                execution_log.append(f"    参数: {json.dumps(tool_args, ensure_ascii=False, indent=6)}")
-                _emit("tool_call", f"调用工具: {tool_name}")
+                # 记录 LLM 的思考内容（如果有）
+                llm_content = response.get("content")
+                if llm_content:
+                    console.print(f"[dim]LLM 思考: {llm_content[:200]}{'...' if len(llm_content) > 200 else ''}[/dim]")
+                    execution_log.append("LLM 思考内容:")
+                    execution_log.append(f"{llm_content}")
+                    execution_log.append("")
+                    _emit("thinking", llm_content)
+                    recorder.record_thinking(llm_content)
                 
-                # 获取工具实例，检查工具类型
-                tool = self.tool_registry.get(tool_name)
+                # 检查是否有工具调用
+                tool_calls = response.get("tool_calls", [])
                 
-                # ============================================
-                # Skill 注入工具：四步注入机制
-                # ============================================
-                if tool and getattr(tool, 'skill_injector', False):
-                    # 1. 执行工具，获取 tool 响应
-                    result_str = tool.execute(**tool_args)
+                if not tool_calls:
+                    final_response = response.get("content") or "完成。"
                     
-                    console.print(f"  [cyan]{result_str}[/cyan]")
-                    execution_log.append(f"  {result_str}")
+                    self.conversation_history.append(assistant_message)
+                    self._save_history()
                     
-                    # 检查是否执行成功（不是 Error 开头）
-                    if result_str.startswith("Error:"):
-                        # 技能不存在，走正常的 tool 响应流程
+                    execution_log.append("Agent 完成任务（无需调用工具）")
+                    self._log_interaction(user_input, final_response, iteration, execution_log)
+                    
+                    console.print("\n[green]Agent 完成任务[/green]")
+                    recorder.mark_final_response()
+                    _emit("complete", final_response)
+                    
+                    return self._finalize_run(
+                        recorder, "passed", iteration,
+                        final_response, [], client_side_tool_calls,
+                        user_input, execution_log
+                    )
+                
+                # 有工具调用，需要执行工具
+                console.print(f"[yellow]需要调用 {len(tool_calls)} 个工具[/yellow]")
+                execution_log.append(f"需要调用 {len(tool_calls)} 个工具")
+                _emit("tool_call", f"需要调用 {len(tool_calls)} 个工具")
+                
+                assistant_message["tool_calls"] = tool_calls
+                self.conversation_history.append(assistant_message)
+                self._save_history()
+                
+                for tool_call in tool_calls:
+                    tool_name = tool_call["function"]["name"]
+                    tool_args_str = tool_call["function"]["arguments"]
+                    
+                    try:
+                        tool_args = json.loads(tool_args_str)
+                    except json.JSONDecodeError:
+                        tool_args = {}
+                    
+                    console.print(f"  -> 调用工具: [bold]{tool_name}[/bold]")
+                    console.print(f"    参数: {tool_args}")
+                    
+                    execution_log.append(f"  -> 调用工具: {tool_name}")
+                    execution_log.append(f"    参数: {json.dumps(tool_args, ensure_ascii=False, indent=6)}")
+                    _emit("tool_call", f"调用工具: {tool_name}")
+                    
+                    tool = self.tool_registry.get(tool_name)
+                    
+                    # ============================================
+                    # Skill 注入工具
+                    # ============================================
+                    if tool and getattr(tool, 'skill_injector', False):
+                        tc_start = recorder.record_tool_call_start(tool_name, tool_args)
+                        result_str = tool.execute(**tool_args)
+                        
+                        console.print(f"  [cyan]{result_str}[/cyan]")
+                        execution_log.append(f"  {result_str}")
+                        
+                        if result_str.startswith("Error:"):
+                            recorder.record_tool_call_finish(tool_name, tc_start, status="error", error=result_str)
+                            self.conversation_history.append({
+                                "role": "tool",
+                                "tool_call_id": tool_call["id"],
+                                "name": tool_name,
+                                "content": result_str
+                            })
+                            self._save_history()
+                            _emit("error", result_str)
+                            continue
+                        
+                        recorder.record_tool_call_finish(tool_name, tc_start, status="success")
+                        
                         self.conversation_history.append({
                             "role": "tool",
                             "tool_call_id": tool_call["id"],
                             "name": tool_name,
                             "content": result_str
                         })
+                        self.conversation_history.append({
+                            "role": "assistant",
+                            "content": ""
+                        })
+                        
+                        injection_content = tool.get_injection_content()
+                        self.conversation_history.append({
+                            "role": "user",
+                            "content": injection_content
+                        })
+                        
+                        injected_skill = tool._pending_skill
+                        recorder.record_skill_injected(injected_skill)
+                        _emit("skill_inject", f"技能 {injected_skill} 已注入")
+                        execution_log.append(f"  技能注入: {injected_skill}")
+                        console.print(f"  [cyan]技能 {injected_skill} 已注入到上下文[/cyan]")
+                        
                         self._save_history()
-                        _emit("error", result_str)
                         continue
                     
-                    # 2. 添加 tool 响应消息
+                    # ============================================
+                    # 客户端工具
+                    # ============================================
+                    elif tool and getattr(tool, 'client_side', False):
+                        console.print(f"  [magenta]客户端工具，跳过后端执行[/magenta]")
+                        execution_log.append(f"  客户端工具，跳过后端执行")
+                        
+                        client_result = ClientSideToolResult(
+                            tool_name=tool_name,
+                            arguments=tool_args,
+                            description=f"前端将渲染 {tool_name}"
+                        )
+                        client_side_tool_calls.append(client_result)
+                        result_str = client_result.to_message()
+                        
+                        recorder.record_client_tool(tool_name, tool_args)
+                        
+                        _emit("client_side_tool", json.dumps({
+                            "name": tool_name,
+                            "arguments": tool_args
+                        }, ensure_ascii=False))
+                        
+                        execution_log.append(f"  客户端工具结果: {result_str}")
+                    
+                    # ============================================
+                    # 普通工具
+                    # ============================================
+                    else:
+                        tc_start = recorder.record_tool_call_start(tool_name, tool_args)
+                        try:
+                            result = self.tool_registry.execute(tool_name, **tool_args)
+                            result_str = str(result)
+                            recorder.record_tool_call_finish(tool_name, tc_start, status="success")
+                            
+                            # 检测产物创建
+                            if tool_name == "Write" and "path" in tool_args:
+                                recorder.record_artifact_created(tool_args["path"])
+                            
+                            console.print(f"  工具执行成功（返回 {len(result_str)} 字符）")
+                            if result_str.strip():
+                                console.print("  工具输出:", style="dim")
+                                if len(result_str) > 2000:
+                                    console.print(result_str[:2000] + f"\n... [省略 {len(result_str)-2000} 字符]", markup=False, soft_wrap=True)
+                                else:
+                                    console.print(result_str, markup=False, soft_wrap=True)
+                            
+                            if len(result_str) > 2000:
+                                log_result = result_str[:1000] + f"\n\n... [中间省略 {len(result_str)-2000} 字符] ...\n\n" + result_str[-1000:]
+                            else:
+                                log_result = result_str
+                            
+                            execution_log.append(f"  工具执行成功（返回 {len(result_str)} 字符）")
+                            execution_log.append(f"    结果:\n{log_result}")
+                            _emit("tool_result", f"工具 {tool_name} 执行成功")
+                            
+                        except Exception as e:
+                            result_str = f"工具执行失败：{str(e)}"
+                            recorder.record_tool_call_finish(tool_name, tc_start, status="error", error=str(e))
+                            console.print(f"  [red]{result_str}[/red]")
+                            execution_log.append(f"  {result_str}")
+                            _emit("error", result_str)
+
+                    # L1 门卫：检查并持久化大输出
+                    persisted = self._persist_tool_output(result_str, tool_call["id"], tool_name)
+                    if persisted != result_str:
+                        recorder.record_artifact_created(f"{TOOL_RESULTS_DIR_NAME}/{tool_call['id']}.txt")
+                    result_str = persisted
+
                     self.conversation_history.append({
                         "role": "tool",
                         "tool_call_id": tool_call["id"],
                         "name": tool_name,
-                        "content": result_str  # "Launching skill: xxx"
+                        "content": result_str
                     })
-                    
-                    # 3. 添加桥接 assistant 消息（优先空字符串，API 报错再降级）
-                    self.conversation_history.append({
-                        "role": "assistant",
-                        "content": ""  # 降级方案: "." 或 "..."
-                    })
-                    
-                    # 4. 获取并注入 user 消息（技能内容）
-                    injection_content = tool.get_injection_content()
-                    self.conversation_history.append({
-                        "role": "user",
-                        "content": injection_content
-                    })
-                    
-                    # 5. 记录日志
-                    injected_skill = tool._pending_skill
-                    _emit("skill_inject", f"技能 {injected_skill} 已注入")
-                    execution_log.append(f"  技能注入: {injected_skill}")
-                    console.print(f"  [cyan]技能 {injected_skill} 已注入到上下文[/cyan]")
-                    
                     self._save_history()
-                    
-                    # 跳过后续的通用处理，继续下一个工具调用
-                    continue
-                
-                # ============================================
-                # 客户端工具：跳过后端执行
-                # ============================================
-                elif tool and getattr(tool, 'client_side', False):
-                    console.print(f"  [magenta]客户端工具，跳过后端执行[/magenta]")
-                    execution_log.append(f"  客户端工具，跳过后端执行")
-                    
-                    # 创建客户端工具结果
-                    client_result = ClientSideToolResult(
-                        tool_name=tool_name,
-                        arguments=tool_args,
-                        description=f"前端将渲染 {tool_name}"
-                    )
-                    client_side_tool_calls.append(client_result)
-                    
-                    # 返回给 LLM 的消息
-                    result_str = client_result.to_message()
-                    
-                    _emit("client_side_tool", json.dumps({
-                        "name": tool_name,
-                        "arguments": tool_args
-                    }, ensure_ascii=False))
-                    
-                    execution_log.append(f"  客户端工具结果: {result_str}")
-                
-                # ============================================
-                # 普通工具：正常执行
-                # ============================================
-                else:
-                    # 普通工具：正常执行
-                    try:
-                        result = self.tool_registry.execute(tool_name, **tool_args)
-                        result_str = str(result)
-                        
-                        console.print(f"  工具执行成功（返回 {len(result_str)} 字符）")
-                        if result_str.strip():
-                            console.print("  工具输出:", style="dim")
-                            if len(result_str) > 2000:
-                                console.print(result_str[:2000] + f"\n... [省略 {len(result_str)-2000} 字符]", markup=False, soft_wrap=True)
-                            else:
-                                console.print(result_str, markup=False, soft_wrap=True)
-                        
-                        # 记录执行结果（截断过长的内容）
-                        if len(result_str) > 2000:
-                            log_result = result_str[:1000] + f"\n\n... [中间省略 {len(result_str)-2000} 字符] ...\n\n" + result_str[-1000:]
-                        else:
-                            log_result = result_str
-                        
-                        execution_log.append(f"  工具执行成功（返回 {len(result_str)} 字符）")
-                        execution_log.append(f"    结果:\n{log_result}")
-                        _emit("tool_result", f"工具 {tool_name} 执行成功")
-                        
-                    except Exception as e:
-                        result_str = f"工具执行失败：{str(e)}"
-                        console.print(f"  [red]{result_str}[/red]")
-                        execution_log.append(f"  {result_str}")
-                        _emit("error", result_str)
-
-                # L1 门卫：检查并持久化大输出
-                result_str = self._persist_tool_output(result_str, tool_call["id"], tool_name)
-
-                # 添加工具结果到对话历史
-                self.conversation_history.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "name": tool_name,
-                    "content": result_str
-                })
-                self._save_history()  # 每次工具执行完都保存
             
-            # 继续下一轮循环，让 LLM 处理工具结果
+            # 达到最大迭代次数
+            warning_msg = f"已达到最大迭代次数（{max_iterations}），任务可能未完成。"
+            console.print(f"[yellow]{warning_msg}[/yellow]")
+            execution_log.append(warning_msg)
+            _emit("error", warning_msg)
+            self._log_interaction(user_input, warning_msg, max_iterations, execution_log)
+            
+            return self._finalize_run(
+                recorder, "failed", max_iterations,
+                warning_msg, [], client_side_tool_calls,
+                user_input, execution_log
+            )
         
-        # 达到最大迭代次数
-        warning_msg = f"已达到最大迭代次数（{max_iterations}），任务可能未完成。"
-        console.print(f"[yellow]{warning_msg}[/yellow]")
-        
-        execution_log.append(warning_msg)
-        _emit("error", warning_msg)
-        
-        # 保存到日志
-        self._log_interaction(user_input, warning_msg, max_iterations, execution_log)
-        
-        # 返回结构化结果
+        except Exception as e:
+            error_msg = f"Agent 运行异常：{str(e)}"
+            console.print(f"[red]{error_msg}[/red]")
+            return self._finalize_run(
+                recorder, "failed", iteration,
+                error_msg, [], client_side_tool_calls,
+                user_input, execution_log
+            )
+
+    def _init_recorder(self, user_input: str) -> RunRecorder:
+        """初始化本次 run 的 Recorder"""
+        session_id = self.log_file.parent.name
+        recorder = RunRecorder(
+            session_id=session_id,
+            sessions_root=Config.SESSIONS_ROOT,
+            user_input=user_input,
+        )
+        # 尝试匹配 task_id
+        evaluations_dir = Config.WORKSPACE_ROOT / "evaluations"
+        try:
+            registry = RunsRegistry(evaluations_dir)
+            recorder.run_record.task_id = registry.match_task_id(user_input)
+        except Exception:
+            pass
+        return recorder
+
+    def _finalize_run(
+        self,
+        recorder: RunRecorder,
+        status: str,
+        iterations: int,
+        response: str,
+        execution_log_extra: List[str],
+        client_side_tool_calls: List[ClientSideToolResult],
+        user_input: str,
+        execution_log: List[str],
+    ) -> Dict[str, Any]:
+        """结束 run，执行评分、落盘、更新索引"""
+        try:
+            # 先把 recorder 内部累计的统计量同步到 run_record，
+            # 确保 scorer 读到的数据是完整的。
+            recorder.run_record.iterations = iterations
+            recorder.run_record.status = status
+            recorder.run_record.tool_calls = recorder.tool_calls_count
+            recorder.run_record.tool_errors = recorder.tool_errors_count
+            recorder.run_record.skills = list(recorder._injected_skills)
+            recorder.run_record.duration_ms = int(
+                (time.time() - recorder._start_time) * 1000
+            )
+
+            scorer = RuleScorer()
+            eval_record = scorer.score(recorder.run_record, recorder.artifacts_list)
+            run_record = recorder.finalize(status=status, iterations=iterations, eval_record=eval_record)
+            
+            evaluations_dir = Config.WORKSPACE_ROOT / "evaluations"
+            registry = RunsRegistry(evaluations_dir)
+            registry.append_run(run_record, eval_record)
+        except Exception as e:
+            console.print(f"[yellow]评估落盘失败（不影响主流程）: {e}[/yellow]")
+            try:
+                recorder.finalize(status=status, iterations=iterations)
+            except Exception:
+                pass
+
         return {
-            "response": warning_msg,
+            "response": response,
             "client_side_tools": [
                 {
                     "tool_name": cst.tool_name,
@@ -505,7 +576,8 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
                 }
                 for cst in client_side_tool_calls
             ],
-            "iterations": max_iterations
+            "iterations": iterations,
+            "run_id": recorder.run_id,
         }
     
     def reset_conversation(self):

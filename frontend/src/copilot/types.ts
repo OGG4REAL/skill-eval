@@ -75,6 +75,7 @@ export interface SSEErrorEvent {
 
 export interface SSEDoneEvent {
   session_id: string;
+  run_id?: string;
 }
 
 // 思考过程条目

@@ -106,8 +106,21 @@ class LLMClient:
             "content": message.content,
             "role": message.role,
             "finish_reason": choice.finish_reason,
-            "tool_calls": []
+            "tool_calls": [],
+            "_meta": {
+                "model": getattr(response, "model", self.model),
+                "provider": self.provider,
+                "usage": None,
+            },
         }
+        
+        usage = getattr(response, "usage", None)
+        if usage:
+            result["_meta"]["usage"] = {
+                "prompt_tokens": getattr(usage, "prompt_tokens", None),
+                "completion_tokens": getattr(usage, "completion_tokens", None),
+                "total_tokens": getattr(usage, "total_tokens", None),
+            }
         
         if hasattr(message, 'tool_calls') and message.tool_calls:
             for tool_call in message.tool_calls:
@@ -185,11 +198,29 @@ class LLMClient:
                     }
                 })
         
+        usage_data = None
+        usage = getattr(response, "usage", None)
+        if usage:
+            usage_data = {
+                "prompt_tokens": getattr(usage, "input_tokens", None),
+                "completion_tokens": getattr(usage, "output_tokens", None),
+                "total_tokens": None,
+            }
+            inp = usage_data["prompt_tokens"] or 0
+            out = usage_data["completion_tokens"] or 0
+            if inp or out:
+                usage_data["total_tokens"] = inp + out
+        
         return {
             "content": "\n".join(text_parts) if text_parts else None,
             "role": "assistant",
             "finish_reason": "tool_calls" if response.stop_reason == "tool_use" else "stop",
-            "tool_calls": tool_calls
+            "tool_calls": tool_calls,
+            "_meta": {
+                "model": getattr(response, "model", self.model),
+                "provider": self.provider,
+                "usage": usage_data,
+            },
         }
     
     # ================================================================

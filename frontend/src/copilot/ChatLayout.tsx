@@ -10,15 +10,26 @@ import { Download, FileUp, Loader2, PanelRightOpen, Send, Trash2 } from "lucide-
 import { ChartAction, NotificationAction, TableAction } from "./actions";
 import { FileViewer, MarkdownRenderer, ThinkingPanel, WorkspacePanel, WorkspaceResizeHandle } from "./components";
 import {
+  getRunArtifacts,
+  getRunEval,
+  getRunTrajectory,
+  getSessionRun,
   getWorkspace,
   getWorkspaceFile,
+  listEvaluationRuns,
+  listSessionRuns,
   listUploads,
   uploadFiles,
 } from "../lib/api";
 import { downloadReport } from "../lib/reportGenerator";
 import type {
+  ArtifactsRecord,
   CenterMode,
+  EvalRecord,
   FileInfo,
+  RunIndexEntry,
+  RunRecord,
+  TrajectoryEvent,
   WorkspaceFileResponse,
   WorkspaceNode,
   WorkspaceTabKey,
@@ -168,6 +179,16 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const [workspacePreviewError, setWorkspacePreviewError] = useState<string | null>(null);
   const [centerMode, setCenterMode] = useState<CenterMode>("chat");
 
+  // Run / Trajectory / Eval 状态
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [currentRun, setCurrentRun] = useState<RunRecord | null>(null);
+  const [currentTrajectory, setCurrentTrajectory] = useState<TrajectoryEvent[]>([]);
+  const [currentEval, setCurrentEval] = useState<EvalRecord | null>(null);
+  const [currentArtifacts, setCurrentArtifacts] = useState<ArtifactsRecord | null>(null);
+  const [sessionRuns, setSessionRuns] = useState<RunRecord[]>([]);
+  const [globalRuns, setGlobalRuns] = useState<RunIndexEntry[]>([]);
+  const [runLoading, setRunLoading] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -208,15 +229,16 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   }, [sessionId]);
 
   const loadWorkspaceFile = useCallback(
-    async (path: string, options?: { openViewer?: boolean }) => {
-      if (!sessionId) {
+    async (path: string, options?: { openViewer?: boolean; targetSessionId?: string }) => {
+      const effectiveSessionId = options?.targetSessionId || sessionId;
+      if (!effectiveSessionId) {
         return;
       }
       setSelectedWorkspacePath(path);
       setWorkspacePreviewLoading(true);
       setWorkspacePreviewError(null);
       try {
-        const file = await getWorkspaceFile(sessionId, path);
+        const file = await getWorkspaceFile(effectiveSessionId, path);
         setSelectedWorkspaceFile(file);
         if (options?.openViewer) {
           setCenterMode("file");
@@ -230,6 +252,75 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     },
     [sessionId]
   );
+
+  const refreshRunData = useCallback(async (runId?: string) => {
+    if (!sessionId) return;
+    setRunLoading(true);
+    try {
+      const [runs, global] = await Promise.all([
+        listSessionRuns(sessionId),
+        listEvaluationRuns(30),
+      ]);
+      setSessionRuns(runs);
+      setGlobalRuns(global);
+
+      let targetRunId = runId || (runs.length > 0 ? runs[0].run_id : null);
+      let targetSessionId = sessionId;
+
+      // 当前 session 无 run 时，自动选中全局最近的一条
+      if (!targetRunId && global.length > 0) {
+        targetRunId = global[0].run_id;
+        targetSessionId = global[0].session_id;
+      }
+
+      if (targetRunId) {
+        setActiveRunId(targetRunId);
+        const [run, trajectory, evalResult, artifactsResult] = await Promise.all([
+          getSessionRun(targetSessionId, targetRunId).catch(() => null),
+          getRunTrajectory(targetSessionId, targetRunId).catch(() => []),
+          getRunEval(targetSessionId, targetRunId).catch(() => null),
+          getRunArtifacts(targetSessionId, targetRunId).catch(() => null),
+        ]);
+        setCurrentRun(run);
+        setCurrentTrajectory(trajectory);
+        setCurrentEval(evalResult);
+        setCurrentArtifacts(artifactsResult);
+      } else {
+        setActiveRunId(null);
+        setCurrentRun(null);
+        setCurrentTrajectory([]);
+        setCurrentEval(null);
+        setCurrentArtifacts(null);
+      }
+    } catch (error) {
+      console.error("加载 run 数据失败:", error);
+    } finally {
+      setRunLoading(false);
+    }
+  }, [sessionId]);
+
+  const handleSelectRun = useCallback(async (runId: string, ownerSessionId?: string) => {
+    const targetSession = ownerSessionId || sessionId;
+    if (!targetSession) return;
+    setActiveRunId(runId);
+    setRunLoading(true);
+    try {
+      const [run, trajectory, evalResult, artifactsResult] = await Promise.all([
+        getSessionRun(targetSession, runId).catch(() => null),
+        getRunTrajectory(targetSession, runId).catch(() => []),
+        getRunEval(targetSession, runId).catch(() => null),
+        getRunArtifacts(targetSession, runId).catch(() => null),
+      ]);
+      setCurrentRun(run);
+      setCurrentTrajectory(trajectory);
+      setCurrentEval(evalResult);
+      setCurrentArtifacts(artifactsResult);
+    } catch (error) {
+      console.error("加载 run 详情失败:", error);
+    } finally {
+      setRunLoading(false);
+    }
+  }, [sessionId]);
 
   const loadConversationHistory = useCallback(async () => {
     if (!sessionId) {
@@ -255,6 +346,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     void refreshUploads();
     void refreshWorkspace();
     void loadConversationHistory();
+    void refreshRunData();
     setInputValue("");
     setIsLoading(false);
     setCurrentThinking([]);
@@ -263,7 +355,13 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     setSelectedWorkspaceFile(null);
     setWorkspacePreviewError(null);
     setCenterMode("chat");
-  }, [loadConversationHistory, refreshUploads, refreshWorkspace]);
+    setActiveRunId(null);
+    setCurrentRun(null);
+    setCurrentTrajectory([]);
+    setCurrentEval(null);
+    setCurrentArtifacts(null);
+    setSessionRuns([]);
+  }, [loadConversationHistory, refreshUploads, refreshWorkspace, refreshRunData]);
 
   useEffect(() => {
     window.localStorage.setItem(WORKSPACE_WIDTH_KEY, String(workspaceWidth));
@@ -290,6 +388,8 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     setCurrentThinking([]);
     setToolCalls([]);
     setCenterMode("chat");
+
+    let doneRunId: string | null = null;
 
     try {
       const response = await fetch("/copilotkit/chat", {
@@ -341,7 +441,11 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
             try {
               const data = JSON.parse(line.slice(6));
 
-              if (currentEventType === "error") {
+              if (currentEventType === "done") {
+                if (data.run_id) {
+                  doneRunId = data.run_id;
+                }
+              } else if (currentEventType === "error") {
                 streamError = data.message || "未知错误";
               } else if (currentEventType === "suggestions") {
                 if (Array.isArray(data.questions)) {
@@ -418,6 +522,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     } finally {
       setIsLoading(false);
       void refreshWorkspace();
+      void refreshRunData(doneRunId ?? undefined);
     }
   };
 
@@ -899,6 +1004,21 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
                 if (selectedWorkspacePath) {
                   void loadWorkspaceFile(selectedWorkspacePath);
                 }
+              }}
+              currentRun={currentRun}
+              currentTrajectory={currentTrajectory}
+              currentEval={currentEval}
+              currentArtifacts={currentArtifacts}
+              sessionRuns={sessionRuns}
+              globalRuns={globalRuns}
+              runLoading={runLoading}
+              activeRunId={activeRunId}
+              onSelectRun={handleSelectRun}
+              onOpenRunFile={(path) => {
+                const runSession = currentRun?.session_id;
+                void loadWorkspaceFile(path, {
+                  targetSessionId: runSession !== sessionId ? runSession : undefined,
+                });
               }}
             />
           </div>

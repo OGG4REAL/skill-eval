@@ -1,0 +1,13 @@
+{
+  "task_id": "csv_analysis_basic",
+  "input_patterns": ["分析我上传的 csv", "分析这个 csv", "分析一下 csv", "分析csv"],
+  "expected_signals": [
+    "tool:Read:/workspace/uploads/",
+    "client_tool:render_chart|render_table"
+  ],
+  "expected_artifacts": [],
+  "pass_criteria": {
+    "final_response_non_empty": true,
+    "tool_errors_max": 0
+  }
+}

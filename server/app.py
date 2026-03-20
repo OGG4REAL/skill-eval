@@ -457,6 +457,102 @@ def download_output_file(session_id: str, filename: str):
     return FileResponse(file_path)
 
 
+# ============================================================================
+# Run / Trajectory / Eval 查询接口
+# ============================================================================
+
+from agent_system.evaluation.registry import RunsRegistry
+
+
+def _get_evaluations_dir():
+    return Config.WORKSPACE_ROOT / "evaluations"
+
+
+@app.get("/sessions/{session_id}/runs")
+def list_session_runs(session_id: str):
+    """返回当前 session 的 run 列表"""
+    runs_dir = Config.SESSIONS_ROOT / session_id / "runs"
+    if not runs_dir.exists():
+        return []
+    results = []
+    for run_path in sorted(runs_dir.iterdir(), reverse=True):
+        run_json = run_path / "run.json"
+        if run_json.exists():
+            try:
+                import json as _json
+                with open(run_json, "r", encoding="utf-8") as f:
+                    results.append(_json.load(f))
+            except Exception:
+                continue
+    return results
+
+
+@app.get("/sessions/{session_id}/runs/{run_id}")
+def get_session_run(session_id: str, run_id: str):
+    """返回 run.json"""
+    run_json = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "run.json"
+    if not run_json.exists():
+        raise HTTPException(status_code=404, detail="run 不存在")
+    import json as _json
+    with open(run_json, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+
+@app.get("/sessions/{session_id}/runs/{run_id}/trajectory")
+def get_run_trajectory(session_id: str, run_id: str):
+    """返回解析后的 trajectory 事件数组"""
+    traj_path = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "trajectory.jsonl"
+    if not traj_path.exists():
+        raise HTTPException(status_code=404, detail="trajectory 不存在")
+    import json as _json
+    events = []
+    with open(traj_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    events.append(_json.loads(line))
+                except Exception:
+                    continue
+    return events
+
+
+@app.get("/sessions/{session_id}/runs/{run_id}/artifacts")
+def get_run_artifacts(session_id: str, run_id: str):
+    """返回 artifacts.json"""
+    artifacts_path = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "artifacts.json"
+    if not artifacts_path.exists():
+        raise HTTPException(status_code=404, detail="artifacts 不存在")
+    import json as _json
+    with open(artifacts_path, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+
+@app.get("/sessions/{session_id}/runs/{run_id}/eval")
+def get_run_eval(session_id: str, run_id: str):
+    """返回 eval.json"""
+    eval_json = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "eval.json"
+    if not eval_json.exists():
+        raise HTTPException(status_code=404, detail="eval 不存在")
+    import json as _json
+    with open(eval_json, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+
+@app.get("/evaluation/runs")
+def list_evaluation_runs(limit: int = Query(50, description="返回条数")):
+    """返回跨 session 的最近运行列表"""
+    registry = RunsRegistry(_get_evaluations_dir())
+    return registry.list_runs(limit=limit)
+
+
+@app.get("/evaluation/tasks")
+def list_evaluation_tasks():
+    """返回本地任务定义列表"""
+    registry = RunsRegistry(_get_evaluations_dir())
+    return registry.list_tasks()
+
+
 if __name__ == "__main__":
     import uvicorn
 

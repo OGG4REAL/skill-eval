@@ -1,7 +1,12 @@
 import type {
+  ArtifactsRecord,
+  EvalRecord,
   FileInfo,
   MessageResponse,
+  RunIndexEntry,
+  RunRecord,
   SessionSummary,
+  TrajectoryEvent,
   WorkspaceFileResponse,
   WorkspaceTreeResponse,
 } from "../types";
@@ -90,5 +95,52 @@ export function openLogStream(sessionId: string, onLine: (line: string) => void)
     es.close();
   };
   return es;
+}
+
+// ============================================================================
+// Run / Trajectory / Eval API
+// ============================================================================
+
+export async function listSessionRuns(sessionId: string): Promise<RunRecord[]> {
+  return handleResponse<RunRecord[]>(
+    await fetch(`${API_BASE}/sessions/${sessionId}/runs`)
+  );
+}
+
+export async function getSessionRun(sessionId: string, runId: string): Promise<RunRecord> {
+  return handleResponse<RunRecord>(
+    await fetch(`${API_BASE}/sessions/${sessionId}/runs/${runId}`)
+  );
+}
+
+export async function getRunTrajectory(sessionId: string, runId: string): Promise<TrajectoryEvent[]> {
+  return handleResponse<TrajectoryEvent[]>(
+    await fetch(`${API_BASE}/sessions/${sessionId}/runs/${runId}/trajectory`)
+  );
+}
+
+export async function getRunArtifacts(sessionId: string, runId: string): Promise<ArtifactsRecord> {
+  return handleResponse<ArtifactsRecord>(
+    await fetch(`${API_BASE}/sessions/${sessionId}/runs/${runId}/artifacts`)
+  );
+}
+
+export async function getRunEval(sessionId: string, runId: string): Promise<EvalRecord> {
+  return handleResponse<EvalRecord>(
+    await fetch(`${API_BASE}/sessions/${sessionId}/runs/${runId}/eval`)
+  );
+}
+
+export async function listEvaluationRuns(limit: number = 50): Promise<RunIndexEntry[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return handleResponse<RunIndexEntry[]>(
+    await fetch(`${API_BASE}/evaluation/runs?${params.toString()}`)
+  );
+}
+
+export async function listEvaluationTasks(): Promise<Record<string, unknown>[]> {
+  return handleResponse<Record<string, unknown>[]>(
+    await fetch(`${API_BASE}/evaluation/tasks`)
+  );
 }
 
