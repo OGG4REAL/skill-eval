@@ -4,7 +4,7 @@
   "eval_type": "uplift",
   "description": "验证 skill 在干净财务 CSV 上，是否能按财务口径计算关键聚合指标并返回严格结构化 JSON。",
   "input": {
-    "user_query": "请分析我上传的财务 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、total_revenue、weighted_gross_margin_pct、top_product_line_by_total_revenue、top_product_line_revenue、best_quarter_by_net_income、best_quarter_net_income。计算规则：weighted_gross_margin_pct = gross_profit 总和 / total_revenue 总和 * 100，保留两位小数；best_quarter_by_net_income 的格式固定为 \"Qx YYYY\"；金额和比例都返回数字，不要带逗号或百分号。",
+    "user_query": "请分析我上传的财务 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、total_revenue、weighted_gross_margin_pct、top_product_line_by_total_revenue、top_product_line_revenue、best_quarter_by_net_income、best_quarter_net_income。请基于整份数据给出公司整体毛利率、总收入、收入最高的产品线，以及净利润最高的季度。best_quarter_by_net_income 的格式固定为 \"Qx YYYY\"；金额和比例都返回数字，不要带逗号或百分号。",
     "session_setup": {
       "uploads": ["csv/financial_clean.csv"],
       "workspace_files": [],
@@ -72,14 +72,12 @@
         "id": "row_count",
         "type": "exact_match",
         "path": "row_count",
-        "expected": 45,
         "weight": 0.1
       },
       {
         "id": "total_revenue",
         "type": "numeric_tolerance",
         "path": "total_revenue",
-        "expected": 20651000,
         "tolerance": 0.01,
         "weight": 0.2
       },
@@ -87,7 +85,6 @@
         "id": "weighted_gross_margin_pct",
         "type": "numeric_tolerance",
         "path": "weighted_gross_margin_pct",
-        "expected": 65.22,
         "tolerance": 0.01,
         "weight": 0.2
       },
@@ -95,14 +92,12 @@
         "id": "top_product_line_by_total_revenue",
         "type": "exact_match",
         "path": "top_product_line_by_total_revenue",
-        "expected": "SaaS Platform",
         "weight": 0.15
       },
       {
         "id": "top_product_line_revenue",
         "type": "numeric_tolerance",
         "path": "top_product_line_revenue",
-        "expected": 10775000,
         "tolerance": 0.01,
         "weight": 0.15
       },
@@ -110,14 +105,12 @@
         "id": "best_quarter_by_net_income",
         "type": "exact_match",
         "path": "best_quarter_by_net_income",
-        "expected": "Q1 2024",
         "weight": 0.1
       },
       {
         "id": "best_quarter_net_income",
         "type": "numeric_tolerance",
         "path": "best_quarter_net_income",
-        "expected": 795160,
         "tolerance": 0.01,
         "weight": 0.1
       }

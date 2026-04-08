@@ -1,3 +1,38 @@
+# 项目记忆
+
+## 技术栈
+- Python 项目，评估主链位于 `agent_system/evaluation/`
+- 测试框架使用 `pytest`
+- benchmark task 定义位于 `evaluations/tasks/*.json`
+
+## 当前评估链路
+- `BenchmarkRunner` 负责跑 task、收集 `run.json` / `trajectory.jsonl` / `artifacts.json`
+- `RuleScorer` 负责 task-aware 打分
+- `SkillComparator` 负责 `no_skill` vs `with_skill` 对比
+- `ground_truth` 现在应作为答案真值源，`verifier` 负责描述 check 类型、path、tolerance、weight 等判分规则
+
+## 开发约定
+- Phase 2 结果验证改造采用 result-first：优先看最终回答，而不是 trajectory
+- `final_response_text` 在 verifier 中必须按 JSON-only 严格解析，解析失败要显式失败，不能静默降级
+- `task_success` 仍保留，但主判定要受 verifier/rubric 驱动
+- `weighted_score` 允许保留过程分，但默认由 `result_score` 主导
+- 新 task 优先写成“`ground_truth` 存值、`verifier` 不重复写 expected”；默认由 verifier 按 check.path 从 `ground_truth` 取 expected，特殊情况再用 `expected_from`
+
+## 踩坑记录
+- 旧链路只把 `final_response_present` 传给 scorer，没有把最终文本下传，导致无法做真正的结果校验
+- 旧 comparator 只看 `avg_weighted_score`，会掩盖“结果错但过程像对”的情况
+- 旧 task 的 `scoring_weights` 没有 `result_score` 字段，接入 verifier 时要做最小兼容，不能直接破坏已有结构
+- `ground_truth` 和 `verifier.expected` 双写容易漂移；现已增加联动能力与一致性校验，后续不要再手工维护两份相同真值
+
+## 本次范围
+- 仅实现 `phase2-12` 第一版 verifier 执行层与 result-first 评分接入
+- 优先保证 4 个 CSV task 可运行
+- 不做 phase2-13/14，不引入 model judge，不重做 task 设计
+
+## 后续待办
+- 后续可补更多 verifier target / check 类型
+- 后续可考虑把更多 finance task 迁移到结果校验
+- 后续可补更细的 comparator 报表展示
 # PROJECT
 
 ## 技术栈

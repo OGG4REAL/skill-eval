@@ -36,6 +36,9 @@ REQUIRED_TOP_LEVEL = {
 OPTIONAL_TOP_LEVEL = {
     "forbidden_signals": list,
     "routing_expectation": dict,
+    "output_contract": dict,
+    "ground_truth": dict,
+    "verifier": dict,
 }
 
 OPTIONAL_DEFAULTS: dict[str, Any] = {
@@ -224,6 +227,8 @@ class TaskLoader:
                     f"实际 {type(val).__name__}: {val!r}"
                 )
 
+        self._validate_verifier_ground_truth_link(task, source)
+
     @staticmethod
     def _fill_defaults(task: dict) -> None:
         for field, default in OPTIONAL_DEFAULTS.items():
@@ -234,6 +239,52 @@ class TaskLoader:
         for field, default in SESSION_SETUP_DEFAULTS.items():
             if field not in setup:
                 setup[field] = copy.deepcopy(default)
+
+    @staticmethod
+    def _validate_verifier_ground_truth_link(task: dict, source: str) -> None:
+        verifier = task.get("verifier")
+        if verifier is None:
+            return
+        if not isinstance(verifier, dict):
+            return
+
+        checks = verifier.get("checks", [])
+        if not isinstance(checks, list):
+            raise TaskLoadError(f"[{source}] verifier.checks 必须是 list")
+
+        ground_truth = task.get("ground_truth")
+        for idx, check in enumerate(checks):
+            if not isinstance(check, dict):
+                raise TaskLoadError(f"[{source}] verifier.checks[{idx}] 必须是 object")
+
+            if "expected_from" in check and not isinstance(check["expected_from"], str):
+                raise TaskLoadError(f"[{source}] verifier.checks[{idx}].expected_from 必须是 str")
+
+            if "expected" in check and "expected_from" in check:
+                raise TaskLoadError(
+                    f"[{source}] verifier.checks[{idx}] 不能同时声明 expected 和 expected_from"
+                )
+
+            if ground_truth is None:
+                continue
+
+            if not isinstance(ground_truth, dict):
+                raise TaskLoadError(f"[{source}] ground_truth 必须是 object")
+
+            expected_path = _resolve_ground_truth_path_for_check(check)
+            if expected_path is None:
+                continue
+
+            found, expected_from_ground_truth = _get_value_at_path(task, expected_path)
+            if not found:
+                raise TaskLoadError(
+                    f"[{source}] verifier.checks[{idx}] 无法从 {expected_path} 解析 expected"
+                )
+
+            if "expected" in check and check.get("expected") != expected_from_ground_truth:
+                raise TaskLoadError(
+                    f"[{source}] verifier.checks[{idx}] 的 expected 与 {expected_path} 不一致"
+                )
 
 
 def _is_absolute(path_str: str) -> bool:
@@ -266,3 +317,47 @@ def _validate_fixture_path(path_str: str, field_name: str, source: str) -> None:
                 f"[{source}] session_setup.{field_name} 路径包含穿越 (..): {path_str!r}，"
                 f"必须位于 evaluations/fixtures/ 内"
             )
+
+
+def _resolve_ground_truth_path_for_check(check: dict) -> str | None:
+    if "expected" in check:
+        path = check.get("expected_from") or check.get("path")
+    else:
+        path = check.get("expected_from") or check.get("path")
+
+    if not isinstance(path, str) or not path.strip():
+        return None
+
+    normalized = path.strip()
+    if normalized.startswith("task."):
+        normalized = normalized[len("task."):]
+    if normalized.startswith("ground_truth."):
+        return normalized
+    return f"ground_truth.{normalized}"
+
+
+def _get_value_at_path(data: Any, path: str) -> tuple[bool, Any]:
+    if not path:
+        return True, data
+
+    current = data
+    for part in str(path).split("."):
+        if isinstance(current, dict):
+            if part not in current:
+                return False, None
+            current = current[part]
+            continue
+
+        if isinstance(current, list):
+            try:
+                index = int(part)
+            except (TypeError, ValueError):
+                return False, None
+            if index < 0 or index >= len(current):
+                return False, None
+            current = current[index]
+            continue
+
+        return False, None
+
+    return True, current

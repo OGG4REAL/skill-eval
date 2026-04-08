@@ -4,7 +4,7 @@
   "eval_type": "uplift",
   "description": "验证 skill 在干净的非财务 CSV 上，是否能按明确指标要求返回可直接校验的结构化 JSON 结果。",
   "input": {
-    "user_query": "请分析我上传的 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、total_revenue、top_region_by_revenue、top_region_revenue、highest_refund_rate_region、highest_refund_rate_pct。计算规则：highest_refund_rate_pct = 该 region 的 refunds 总和 / revenue 总和 * 100，保留两位小数；金额和比例都返回数字，不要带逗号或百分号。",
+    "user_query": "请分析我上传的 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、total_revenue、top_region_by_revenue、top_region_revenue、highest_refund_rate_region、highest_refund_rate_pct。请基于整份数据给出总收入、收入最高的区域，以及退款率最高的区域。金额和比例都返回数字，不要带逗号或百分号；highest_refund_rate_pct 保留两位小数。",
     "session_setup": {
       "uploads": ["csv/regional_sales_clean.csv"],
       "workspace_files": [],
@@ -70,14 +70,12 @@
         "id": "row_count",
         "type": "exact_match",
         "path": "row_count",
-        "expected": 12,
         "weight": 0.15
       },
       {
         "id": "total_revenue",
         "type": "numeric_tolerance",
         "path": "total_revenue",
-        "expected": 242560,
         "tolerance": 0.01,
         "weight": 0.2
       },
@@ -85,14 +83,12 @@
         "id": "top_region_by_revenue",
         "type": "exact_match",
         "path": "top_region_by_revenue",
-        "expected": "East",
         "weight": 0.15
       },
       {
         "id": "top_region_revenue",
         "type": "numeric_tolerance",
         "path": "top_region_revenue",
-        "expected": 83400,
         "tolerance": 0.01,
         "weight": 0.2
       },
@@ -100,14 +96,12 @@
         "id": "highest_refund_rate_region",
         "type": "exact_match",
         "path": "highest_refund_rate_region",
-        "expected": "West",
         "weight": 0.1
       },
       {
         "id": "highest_refund_rate_pct",
         "type": "numeric_tolerance",
         "path": "highest_refund_rate_pct",
-        "expected": 7.12,
         "tolerance": 0.01,
         "weight": 0.2
       }

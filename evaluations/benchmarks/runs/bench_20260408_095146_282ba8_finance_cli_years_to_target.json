@@ -1,0 +1,494 @@
+{
+  "benchmark_id": "bench_20260408_095146_282ba8",
+  "started_at": "2026-04-08T09:51:46.738+00:00",
+  "finished_at": "2026-04-08T09:52:54.987+00:00",
+  "scope": {
+    "task_id": "finance_cli_years_to_target",
+    "group": null,
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill"
+    ],
+    "trials": 2
+  },
+  "summary": {
+    "cases_total": 4,
+    "cases_succeeded": 2,
+    "cases_failed": 2
+  },
+  "cases": [
+    {
+      "task_id": "finance_cli_years_to_target",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--no-skill--t1",
+      "run_id": "run_20260408_095148_2e0163",
+      "status": "failed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 13720,
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 0.688,
+        "result_score": 0.4,
+        "result_pass": false,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "final_response_json",
+          "score": 0.4,
+          "passed": false,
+          "checks": [
+            {
+              "id": "years_needed",
+              "type": "numeric_tolerance",
+              "path": "years_needed",
+              "expected": 15.64,
+              "actual": 15.64,
+              "passed": true,
+              "weight": 0.4,
+              "expected_source": "task.ground_truth.years_needed",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "initial_investment",
+              "type": "numeric_tolerance",
+              "path": "initial_investment",
+              "expected": 300000,
+              "actual": 30,
+              "passed": false,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.initial_investment",
+              "message": "numeric_tolerance 不匹配，差值 299970.000000 > tolerance 0.010000"
+            },
+            {
+              "id": "target",
+              "type": "numeric_tolerance",
+              "path": "target",
+              "expected": 1000000,
+              "actual": 100,
+              "passed": false,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.target",
+              "message": "numeric_tolerance 不匹配，差值 999900.000000 > tolerance 0.010000"
+            },
+            {
+              "id": "growth_multiple",
+              "type": "exact_match",
+              "path": "growth_multiple",
+              "expected": "3.33x",
+              "actual": 3.33,
+              "passed": false,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.growth_multiple",
+              "message": "exact_match 不匹配"
+            },
+            {
+              "id": "rate_percent",
+              "type": "exact_match",
+              "path": "rate_percent",
+              "expected": "8.00%",
+              "actual": 8,
+              "passed": false,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.rate_percent",
+              "message": "exact_match 不匹配"
+            }
+          ],
+          "summary": {
+            "total_checks": 5,
+            "passed_checks": 1,
+            "failed_checks": 4
+          },
+          "target_detail": {
+            "parser": "json.loads",
+            "raw_length": 108,
+            "parsed_type": "dict"
+          }
+        },
+        "scores": {
+          "task_success": 0.0,
+          "result_score": 0.4,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 豁免(no_skill): skill:fin-advisor-math"
+        ]
+      }
+    },
+    {
+      "task_id": "finance_cli_years_to_target",
+      "variant_id": "no_skill",
+      "trial_index": 2,
+      "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--no-skill--t2",
+      "run_id": "run_20260408_095203_2f0b57",
+      "status": "failed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 27097,
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 0.792,
+        "result_score": 0.6,
+        "result_pass": false,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "final_response_json",
+          "score": 0.6,
+          "passed": false,
+          "checks": [
+            {
+              "id": "years_needed",
+              "type": "numeric_tolerance",
+              "path": "years_needed",
+              "expected": 15.64,
+              "actual": 15.64,
+              "passed": true,
+              "weight": 0.4,
+              "expected_source": "task.ground_truth.years_needed",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "initial_investment",
+              "type": "numeric_tolerance",
+              "path": "initial_investment",
+              "expected": 300000,
+              "actual": 300000,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.initial_investment",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "target",
+              "type": "numeric_tolerance",
+              "path": "target",
+              "expected": 1000000,
+              "actual": 1000000,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.target",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "growth_multiple",
+              "type": "exact_match",
+              "path": "growth_multiple",
+              "expected": "3.33x",
+              "actual": 3.33,
+              "passed": false,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.growth_multiple",
+              "message": "exact_match 不匹配"
+            },
+            {
+              "id": "rate_percent",
+              "type": "exact_match",
+              "path": "rate_percent",
+              "expected": "8.00%",
+              "actual": 8,
+              "passed": false,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.rate_percent",
+              "message": "exact_match 不匹配"
+            }
+          ],
+          "summary": {
+            "total_checks": 5,
+            "passed_checks": 3,
+            "failed_checks": 2
+          },
+          "target_detail": {
+            "parser": "json.loads",
+            "raw_length": 116,
+            "parsed_type": "dict"
+          }
+        },
+        "scores": {
+          "task_success": 0.0,
+          "result_score": 0.6,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 豁免(no_skill): skill:fin-advisor-math"
+        ]
+      }
+    },
+    {
+      "task_id": "finance_cli_years_to_target",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--with-skill--t1",
+      "run_id": "run_20260408_095231_b24f3e",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "fin-advisor-math"
+        ],
+        "pre_injected_skills": [
+          "fin-advisor-math"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 12161,
+      "tool_calls": 1,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "final_response_json",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "years_needed",
+              "type": "numeric_tolerance",
+              "path": "years_needed",
+              "expected": 15.64,
+              "actual": 15.64,
+              "passed": true,
+              "weight": 0.4,
+              "expected_source": "task.ground_truth.years_needed",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "initial_investment",
+              "type": "numeric_tolerance",
+              "path": "initial_investment",
+              "expected": 300000,
+              "actual": 300000.0,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.initial_investment",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "target",
+              "type": "numeric_tolerance",
+              "path": "target",
+              "expected": 1000000,
+              "actual": 1000000.0,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.target",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "growth_multiple",
+              "type": "exact_match",
+              "path": "growth_multiple",
+              "expected": "3.33x",
+              "actual": "3.33x",
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.growth_multiple",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "rate_percent",
+              "type": "exact_match",
+              "path": "rate_percent",
+              "expected": "8.00%",
+              "actual": "8.00%",
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.rate_percent",
+              "message": "exact_match 通过"
+            }
+          ],
+          "summary": {
+            "total_checks": 5,
+            "passed_checks": 5,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "json.loads",
+            "raw_length": 141,
+            "parsed_type": "dict"
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    },
+    {
+      "task_id": "finance_cli_years_to_target",
+      "variant_id": "with_skill",
+      "trial_index": 2,
+      "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--with-skill--t2",
+      "run_id": "run_20260408_095245_964611",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "fin-advisor-math"
+        ],
+        "pre_injected_skills": [
+          "fin-advisor-math"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 9697,
+      "tool_calls": 1,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "final_response_json",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "years_needed",
+              "type": "numeric_tolerance",
+              "path": "years_needed",
+              "expected": 15.64,
+              "actual": 15.64,
+              "passed": true,
+              "weight": 0.4,
+              "expected_source": "task.ground_truth.years_needed",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "initial_investment",
+              "type": "numeric_tolerance",
+              "path": "initial_investment",
+              "expected": 300000,
+              "actual": 300000.0,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.initial_investment",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "target",
+              "type": "numeric_tolerance",
+              "path": "target",
+              "expected": 1000000,
+              "actual": 1000000.0,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.target",
+              "message": "numeric_tolerance 通过，差值 0.000000"
+            },
+            {
+              "id": "growth_multiple",
+              "type": "exact_match",
+              "path": "growth_multiple",
+              "expected": "3.33x",
+              "actual": "3.33x",
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.growth_multiple",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "rate_percent",
+              "type": "exact_match",
+              "path": "rate_percent",
+              "expected": "8.00%",
+              "actual": "8.00%",
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.rate_percent",
+              "message": "exact_match 通过"
+            }
+          ],
+          "summary": {
+            "total_checks": 5,
+            "passed_checks": 5,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "json.loads",
+            "raw_length": 141,
+            "parsed_type": "dict"
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "finance_cli_years_to_target",
+        "variant_id": "no_skill",
+        "trials": 2,
+        "pass_rate": 0.0,
+        "result_pass_rate": 0.0,
+        "avg_result_score": 0.5,
+        "avg_weighted_score": 0.74,
+        "avg_duration_ms": 20408.5,
+        "avg_tool_calls": 2.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_cli_years_to_target",
+        "variant_id": "with_skill",
+        "trials": 2,
+        "pass_rate": 1.0,
+        "result_pass_rate": 1.0,
+        "avg_result_score": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 10929.0,
+        "avg_tool_calls": 1.0,
+        "avg_tool_errors": 0.0
+      }
+    ]
+  }
+}

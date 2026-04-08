@@ -139,6 +139,42 @@ class TestLoadValid:
         t = loader.get_task("test_task_alpha")
         assert t["input_patterns"] == ["分析csv"]
 
+    def test_verifier_related_fields_preserved(self, tmp_path: Path):
+        task = _make_task(
+            output_contract={"format": "json_only"},
+            ground_truth={"answer": "ok"},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [{"id": "answer", "type": "exact_match", "path": "answer"}],
+            },
+        )
+        _write_task(tmp_path, task)
+        loader = TaskLoader(tmp_path)
+        loaded = loader.get_task("test_task_alpha")
+        assert loaded["output_contract"]["format"] == "json_only"
+        assert loaded["ground_truth"]["answer"] == "ok"
+        assert loaded["verifier"]["target"] == "final_response_json"
+
+    def test_verifier_expected_from_ground_truth_passes_validation(self, tmp_path: Path):
+        task = _make_task(
+            ground_truth={"nested": {"answer": "ok"}},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [{
+                    "id": "answer",
+                    "type": "exact_match",
+                    "path": "answer",
+                    "expected_from": "nested.answer",
+                }],
+            },
+        )
+        _write_task(tmp_path, task)
+        loader = TaskLoader(tmp_path)
+        loaded = loader.get_task("test_task_alpha")
+        assert loaded["verifier"]["checks"][0]["expected_from"] == "nested.answer"
+
     def test_defaults_not_shared_across_tasks(self, tmp_path: Path):
         """多个 task 的默认值应各自独立，不共享可变对象"""
         t1 = _make_task(task_id="iso_a")
@@ -241,6 +277,51 @@ class TestTypeErrors:
         task["input"]["session_setup"]["workspace_files"] = ["ok.txt", 999]
         _write_task(tmp_path, task)
         with pytest.raises(TaskLoadError, match="workspace_files 中包含非字符串元素"):
+            TaskLoader(tmp_path)
+
+    def test_verifier_must_be_object(self, tmp_path: Path):
+        task = _make_task(verifier=["bad"])
+        _write_task(tmp_path, task)
+        with pytest.raises(TaskLoadError, match="可选字段 'verifier' 类型错误"):
+            TaskLoader(tmp_path)
+
+    def test_verifier_expected_from_must_be_string(self, tmp_path: Path):
+        task = _make_task(
+            ground_truth={"answer": "ok"},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [{"id": "answer", "type": "exact_match", "path": "answer", "expected_from": 1}],
+            },
+        )
+        _write_task(tmp_path, task)
+        with pytest.raises(TaskLoadError, match="expected_from 必须是 str"):
+            TaskLoader(tmp_path)
+
+    def test_verifier_expected_must_match_ground_truth(self, tmp_path: Path):
+        task = _make_task(
+            ground_truth={"answer": "ok"},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [{"id": "answer", "type": "exact_match", "path": "answer", "expected": "bad"}],
+            },
+        )
+        _write_task(tmp_path, task)
+        with pytest.raises(TaskLoadError, match="expected 与 ground_truth.answer 不一致"):
+            TaskLoader(tmp_path)
+
+    def test_verifier_missing_expected_and_ground_truth_path_fails(self, tmp_path: Path):
+        task = _make_task(
+            ground_truth={"other": "ok"},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [{"id": "answer", "type": "exact_match", "path": "answer"}],
+            },
+        )
+        _write_task(tmp_path, task)
+        with pytest.raises(TaskLoadError, match="无法从 ground_truth.answer 解析 expected"):
             TaskLoader(tmp_path)
 
     def test_uploads_element_not_string(self, tmp_path: Path):

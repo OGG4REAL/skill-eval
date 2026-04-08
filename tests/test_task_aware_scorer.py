@@ -66,6 +66,36 @@ def _run(**overrides) -> RunRecord:
     return RunRecord(**defaults)
 
 
+def _verifier_task(**overrides) -> dict:
+    task = _task(
+        expected_signals=[],
+        expected_artifacts=[],
+        pass_criteria={},
+        ground_truth={"answer": "ok", "nested": {"answer": "ok"}},
+        scoring_weights={
+            "task_success": 0.40,
+            "signal_match": 0.20,
+            "artifact_match": 0.10,
+            "tool_efficiency": 0.10,
+            "trajectory_quality": 0.20,
+        },
+        verifier={
+            "mode": "rubric",
+            "target": "final_response_json",
+            "checks": [
+                {
+                    "id": "answer",
+                    "type": "exact_match",
+                    "path": "answer",
+                    "weight": 1.0,
+                }
+            ],
+        },
+    )
+    task.update(overrides)
+    return task
+
+
 FULL_TRAJECTORY = [
     {"type": "skill_injected", "run_id": "r1", "skills": ["csv-data-summarizer"]},
     {"type": "tool_call_started", "run_id": "r1", "tool_name": "Read",
@@ -627,3 +657,89 @@ class TestEdgeCases:
         assert ev.task_id == "broken"
         assert ev.scores["task_success"] is None
         assert any("评分异常" in n for n in ev.notes)
+
+
+class TestVerifierScoring:
+
+    def test_result_score_drives_task_success(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"answer":"ok"}',
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+        assert ev.scores["task_success"] == 1.0
+        assert ev.metrics["result_pass"] is True
+        assert ev.metrics["result_detail"]["summary"]["passed_checks"] == 1
+        assert ev.metrics["result_detail"]["checks"][0]["expected_source"] == "task.ground_truth.answer"
+
+    def test_invalid_json_only_response_returns_explicit_failure(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="answer=ok",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 0.0
+        assert ev.scores["task_success"] == 0.0
+        assert ev.metrics["result_pass"] is False
+        assert "failure_reason" in ev.metrics["result_detail"]
+        assert "合法 JSON-only 输出" in ev.metrics["result_detail"]["failure_reason"]
+        assert any("result 验证失败" in n for n in ev.notes)
+
+    def test_result_first_weights_override_legacy_weights(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"answer":"bad"}',
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.metrics["scoring_weights_used"]["result_score"] == pytest.approx(0.65)
+        assert "task_success" not in ev.metrics["scoring_weights_used"]
+        assert ev.metrics["weighted_score"] < 0.5
+
+    def test_expected_from_can_override_default_ground_truth_path(self):
+        scorer = RuleScorer()
+        task = _verifier_task(
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [
+                    {
+                        "id": "answer_alias",
+                        "type": "exact_match",
+                        "path": "answer_alias",
+                        "expected_from": "nested.answer",
+                        "weight": 1.0,
+                    }
+                ],
+            }
+        )
+        ev = scorer.score_task_run(
+            task=task,
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"answer_alias":"ok"}',
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+        assert ev.metrics["result_detail"]["checks"][0]["expected_source"] == "task.ground_truth.nested.answer"

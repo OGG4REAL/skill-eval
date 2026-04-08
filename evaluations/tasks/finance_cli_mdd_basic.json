@@ -2,9 +2,9 @@
   "task_id": "finance_cli_mdd_basic",
   "group": "finance_uplift",
   "eval_type": "uplift",
-  "description": "验证 skill 覆盖风险指标序列计算（最大回撤），而不仅是时间价值公式",
+  "description": "验证风险指标序列计算场景下，agent 是否能返回可直接校验的结构化 JSON 结果。",
   "input": {
-    "user_query": "给定净值序列 1.0, 1.1, 0.95, 1.2, 0.8，帮我计算最大回撤并解释结果。",
+    "user_query": "给定净值序列 1.0, 1.1, 0.95, 1.2, 0.8，请计算最大回撤。请只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：max_drawdown、max_drawdown_percent。",
     "session_setup": {
       "uploads": [],
       "workspace_files": [],
@@ -33,5 +33,40 @@
   },
   "routing_expectation": {
     "should_activate": ["fin-advisor-math"]
+  },
+  "output_contract": {
+    "format": "json_only",
+    "required_fields": [
+      "max_drawdown",
+      "max_drawdown_percent"
+    ],
+    "notes": [
+      "不要输出 Markdown 代码块",
+      "max_drawdown 返回数字",
+      "max_drawdown_percent 返回带百分号的字符串"
+    ]
+  },
+  "ground_truth": {
+    "max_drawdown": 0.333333,
+    "max_drawdown_percent": "33.33%"
+  },
+  "verifier": {
+    "mode": "rubric",
+    "target": "final_response_json",
+    "checks": [
+      {
+        "id": "max_drawdown",
+        "type": "numeric_tolerance",
+        "path": "max_drawdown",
+        "tolerance": 0.000001,
+        "weight": 0.6
+      },
+      {
+        "id": "max_drawdown_percent",
+        "type": "exact_match",
+        "path": "max_drawdown_percent",
+        "weight": 0.4
+      }
+    ]
   }
 }

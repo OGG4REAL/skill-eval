@@ -4,7 +4,7 @@
   "eval_type": "uplift",
   "description": "验证 skill 在大文件场景下，是否仍能稳定完成脚本化聚合并返回可直接对分的 JSON 结果。",
   "input": {
-    "user_query": "请分析我上传的大型财务 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、revenue_by_year、weighted_net_margin_pct、top_product_line_by_total_revenue、top_product_line_revenue。计算规则：revenue_by_year 必须是对象，键固定为字符串 \"2023\" 和 \"2024\"；weighted_net_margin_pct = net_income 总和 / total_revenue 总和 * 100，保留两位小数；金额和比例都返回数字，不要带逗号或百分号。",
+    "user_query": "请分析我上传的大型财务 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、revenue_by_year、weighted_net_margin_pct、top_product_line_by_total_revenue、top_product_line_revenue。请基于整份数据给出分年份收入汇总、公司整体净利率，以及收入最高的产品线。revenue_by_year 必须是对象，键固定为字符串 \"2023\" 和 \"2024\"；金额和比例都返回数字，不要带逗号或百分号。",
     "session_setup": {
       "uploads": ["csv/financial_large.csv"],
       "workspace_files": [],
@@ -71,14 +71,12 @@
         "id": "row_count",
         "type": "exact_match",
         "path": "row_count",
-        "expected": 5400,
         "weight": 0.15
       },
       {
         "id": "revenue_2023",
         "type": "numeric_tolerance",
         "path": "revenue_by_year.2023",
-        "expected": 1805280000,
         "tolerance": 0.01,
         "weight": 0.2
       },
@@ -86,7 +84,6 @@
         "id": "revenue_2024",
         "type": "numeric_tolerance",
         "path": "revenue_by_year.2024",
-        "expected": 672840000,
         "tolerance": 0.01,
         "weight": 0.2
       },
@@ -94,7 +91,6 @@
         "id": "weighted_net_margin_pct",
         "type": "numeric_tolerance",
         "path": "weighted_net_margin_pct",
-        "expected": 13.21,
         "tolerance": 0.01,
         "weight": 0.15
       },
@@ -102,14 +98,12 @@
         "id": "top_product_line_by_total_revenue",
         "type": "exact_match",
         "path": "top_product_line_by_total_revenue",
-        "expected": "SaaS Platform",
         "weight": 0.1
       },
       {
         "id": "top_product_line_revenue",
         "type": "numeric_tolerance",
         "path": "top_product_line_revenue",
-        "expected": 1293000000,
         "tolerance": 0.01,
         "weight": 0.2
       }

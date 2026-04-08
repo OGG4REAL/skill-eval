@@ -34,6 +34,27 @@ MINIMAL_TASK = {
     "scoring_weights": {"task_success": 0.5, "signal_match": 0.3, "trajectory_quality": 0.2},
 }
 
+VERIFIER_TASK = {
+    **MINIMAL_TASK,
+    "task_id": "test_task_result_first",
+    "expected_signals": [],
+    "expected_artifacts": [],
+    "pass_criteria": {},
+    "verifier": {
+        "mode": "rubric",
+        "target": "final_response_json",
+        "checks": [
+            {
+                "id": "answer",
+                "type": "exact_match",
+                "path": "answer",
+                "expected": "ok",
+                "weight": 1.0,
+            }
+        ],
+    },
+}
+
 TASK_WITH_UPLOADS = {
     **MINIMAL_TASK,
     "task_id": "test_task_uploads",
@@ -294,12 +315,24 @@ class TestAggregation:
             {
                 "task_id": "t1", "variant_id": "v1", "status": "passed",
                 "duration_ms": 5000, "tool_calls": 8, "tool_errors": 0,
-                "score": {"weighted_score": 0.8, "scores": {}, "notes": []},
+                "score": {
+                    "weighted_score": 0.8,
+                    "result_score": 1.0,
+                    "result_pass": True,
+                    "scores": {},
+                    "notes": [],
+                },
             },
             {
                 "task_id": "t1", "variant_id": "v1", "status": "passed",
                 "duration_ms": 3000, "tool_calls": 6, "tool_errors": 1,
-                "score": {"weighted_score": 0.6, "scores": {}, "notes": []},
+                "score": {
+                    "weighted_score": 0.6,
+                    "result_score": 0.5,
+                    "result_pass": False,
+                    "scores": {},
+                    "notes": [],
+                },
             },
             {
                 "task_id": "t1", "variant_id": "v1", "status": "failed",
@@ -312,6 +345,8 @@ class TestAggregation:
         assert len(tv) == 1
         assert tv[0]["trials"] == 3
         assert tv[0]["pass_rate"] == pytest.approx(2 / 3, abs=0.01)
+        assert tv[0]["result_pass_rate"] == pytest.approx(0.5, abs=0.01)
+        assert tv[0]["avg_result_score"] == pytest.approx(0.75, abs=0.01)
         assert tv[0]["avg_weighted_score"] == pytest.approx(0.7, abs=0.01)
         assert tv[0]["avg_duration_ms"] == pytest.approx(4000, abs=1)
         assert tv[0]["avg_tool_calls"] == pytest.approx(7, abs=0.1)
@@ -504,6 +539,7 @@ class TestIntegrationMocked:
         tasks_dir = tmp_path / "evaluations" / "tasks"
         tasks_dir.mkdir(parents=True)
         _write_task(tasks_dir, MINIMAL_TASK)
+        _write_task(tasks_dir, VERIFIER_TASK)
 
         fixtures_dir = tmp_path / "evaluations" / "fixtures"
         fixtures_dir.mkdir(parents=True)
@@ -674,6 +710,36 @@ class TestIntegrationMocked:
 
         agg_entry = result["aggregates"]["by_task_variant"][0]
         assert agg_entry["pass_rate"] == pytest.approx(0.5, abs=0.01)
+
+    def test_runner_passes_final_response_text_into_verifier(self, tmp_path):
+        runner, sessions_root = self._setup_runner(tmp_path)
+        run_id = "run_mock_result_001"
+
+        fake_agent = MagicMock()
+        fake_agent.run.return_value = {
+            "response": '{"answer":"ok"}',
+            "run_id": run_id,
+        }
+        fake_agent._mcp_client = MagicMock()
+
+        def fake_setup(**kwargs):
+            sid = kwargs.get("session_id", "unknown")
+            _write_run_outputs(sessions_root, sid, run_id)
+            return fake_agent
+
+        with patch("agent_system.main.setup_system", side_effect=fake_setup):
+            result = runner.run_task("test_task_result_first", variants=["no_skill"], trials=1)
+
+        case = result["cases"][0]
+        assert case["status"] == "passed"
+        assert case["final_response_present"] is True
+        assert case["score"]["result_score"] == 1.0
+        assert case["score"]["result_pass"] is True
+        assert case["score"]["result_detail"]["summary"]["passed_checks"] == 1
+
+        agg_entry = result["aggregates"]["by_task_variant"][0]
+        assert agg_entry["avg_result_score"] == pytest.approx(1.0, abs=0.01)
+        assert agg_entry["result_pass_rate"] == pytest.approx(1.0, abs=0.01)
 
 
 # ── 9. sessions_root 透传 ────────────────────────────────

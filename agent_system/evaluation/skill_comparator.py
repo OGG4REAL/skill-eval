@@ -132,6 +132,10 @@ class SkillComparator:
         target: dict,
         skill: str | None = None,
     ) -> dict[str, Any]:
+        b_result_score = baseline.get("avg_result_score")
+        t_result_score = target.get("avg_result_score")
+        b_result_pass = baseline.get("result_pass_rate")
+        t_result_pass = target.get("result_pass_rate")
         b_score = baseline.get("avg_weighted_score")
         t_score = target.get("avg_weighted_score")
         b_pass = baseline.get("pass_rate")
@@ -139,15 +143,24 @@ class SkillComparator:
         b_dur = baseline.get("avg_duration_ms")
         t_dur = target.get("avg_duration_ms")
 
+        result_score_uplift = _safe_diff(t_result_score, b_result_score)
+        result_pass_uplift = _safe_diff(t_result_pass, b_result_pass)
         score_uplift = _safe_diff(t_score, b_score)
         pass_uplift = _safe_diff(t_pass, b_pass)
         duration_diff = _safe_diff(t_dur, b_dur)
+        verdict_basis = result_score_uplift if result_score_uplift is not None else score_uplift
 
         return {
             "task_id": task_id,
             "skill": skill,
             "baseline_variant": BASELINE_VARIANT,
             "target_variant": TARGET_VARIANT,
+            "baseline_result_score": _r(b_result_score),
+            "target_result_score": _r(t_result_score),
+            "result_score_uplift": _r(result_score_uplift),
+            "baseline_result_pass_rate": _r(b_result_pass),
+            "target_result_pass_rate": _r(t_result_pass),
+            "result_pass_rate_uplift": _r(result_pass_uplift),
             "baseline_score": _r(b_score),
             "target_score": _r(t_score),
             "score_uplift": _r(score_uplift),
@@ -157,7 +170,7 @@ class SkillComparator:
             "baseline_avg_duration_ms": _r(b_dur),
             "target_avg_duration_ms": _r(t_dur),
             "duration_diff_ms": _r(duration_diff),
-            "verdict": _verdict(score_uplift),
+            "verdict": _verdict(verdict_basis),
         }
 
     def _compute_skill_summary(
@@ -171,6 +184,21 @@ class SkillComparator:
 
         summaries: list[dict[str, Any]] = []
         for skill, deltas in sorted(by_skill.items()):
+            baseline_result_scores = [
+                d["baseline_result_score"]
+                for d in deltas
+                if d["baseline_result_score"] is not None
+            ]
+            target_result_scores = [
+                d["target_result_score"]
+                for d in deltas
+                if d["target_result_score"] is not None
+            ]
+            result_uplifts = [
+                d["result_score_uplift"]
+                for d in deltas
+                if d["result_score_uplift"] is not None
+            ]
             baseline_scores = [d["baseline_score"] for d in deltas if d["baseline_score"] is not None]
             target_scores = [d["target_score"] for d in deltas if d["target_score"] is not None]
             uplifts = [d["score_uplift"] for d in deltas if d["score_uplift"] is not None]
@@ -182,6 +210,9 @@ class SkillComparator:
             summaries.append({
                 "skill": skill,
                 "tasks": len(deltas),
+                "baseline_result_avg": _r(_avg(baseline_result_scores)),
+                "target_result_avg": _r(_avg(target_result_scores)),
+                "avg_result_score_uplift": _r(_avg(result_uplifts)),
                 "baseline_avg": _r(_avg(baseline_scores)),
                 "skill_avg": _r(_avg(target_scores)),
                 "avg_uplift": _r(_avg(uplifts)),
@@ -285,13 +316,13 @@ class SkillComparator:
         if task_deltas:
             lines.append("── Task-Level Delta ──")
             lines.append(
-                f"  {'task_id':<45} {'baseline':>8} {'target':>8} {'uplift':>8} {'verdict'}"
+                f"  {'task_id':<45} {'res_base':>8} {'res_tgt':>8} {'res_up':>8} {'verdict'}"
             )
             lines.append("  " + "─" * 80)
             for d in task_deltas:
-                bs = _fmt(d.get("baseline_score"))
-                ts = _fmt(d.get("target_score"))
-                up = _fmt(d.get("score_uplift"), signed=True)
+                bs = _fmt(d.get("baseline_result_score"))
+                ts = _fmt(d.get("target_result_score"))
+                up = _fmt(d.get("result_score_uplift"), signed=True)
                 vd = d.get("verdict", "")
                 lines.append(f"  {d['task_id']:<45} {bs:>8} {ts:>8} {up:>8} {vd}")
             lines.append("")
@@ -301,9 +332,9 @@ class SkillComparator:
             lines.append("── Skill-Level Summary ──")
             for s in skill_summary:
                 lines.append(f"  [{s['skill']}]  tasks={s['tasks']}  "
-                             f"baseline_avg={_fmt(s.get('baseline_avg'))}  "
-                             f"skill_avg={_fmt(s.get('skill_avg'))}  "
-                             f"avg_uplift={_fmt(s.get('avg_uplift'), signed=True)}")
+                             f"result_baseline_avg={_fmt(s.get('baseline_result_avg'))}  "
+                             f"result_target_avg={_fmt(s.get('target_result_avg'))}  "
+                             f"result_avg_uplift={_fmt(s.get('avg_result_score_uplift'), signed=True)}")
                 if s.get("positive_tasks"):
                     lines.append(f"    positive: {', '.join(s['positive_tasks'])}")
                 if s.get("negative_tasks"):

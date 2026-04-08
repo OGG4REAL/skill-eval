@@ -19,8 +19,12 @@ from agent_system.evaluation.skill_comparator import (
 def _make_bench(
     benchmark_id: str = "bench_001",
     task_id: str = "csv_analysis_clean_general",
+    no_skill_result_score: float | None = None,
+    with_skill_result_score: float | None = None,
     no_skill_score: float = 0.8,
     with_skill_score: float = 1.0,
+    no_skill_result_pass_rate: float | None = None,
+    with_skill_result_pass_rate: float | None = None,
     no_skill_pass_rate: float = 1.0,
     with_skill_pass_rate: float = 1.0,
     no_skill_duration: float = 20000,
@@ -29,10 +33,12 @@ def _make_bench(
 ) -> dict:
     agg = [
         {"task_id": task_id, "variant_id": "no_skill", "trials": 1,
-         "pass_rate": no_skill_pass_rate, "avg_weighted_score": no_skill_score,
+         "pass_rate": no_skill_pass_rate, "result_pass_rate": no_skill_result_pass_rate,
+         "avg_result_score": no_skill_result_score, "avg_weighted_score": no_skill_score,
          "avg_duration_ms": no_skill_duration, "avg_tool_calls": 3, "avg_tool_errors": 0},
         {"task_id": task_id, "variant_id": "with_skill", "trials": 1,
-         "pass_rate": with_skill_pass_rate, "avg_weighted_score": with_skill_score,
+         "pass_rate": with_skill_pass_rate, "result_pass_rate": with_skill_result_pass_rate,
+         "avg_result_score": with_skill_result_score, "avg_weighted_score": with_skill_score,
          "avg_duration_ms": with_skill_duration, "avg_tool_calls": 4, "avg_tool_errors": 0},
     ]
     if extra_agg:
@@ -76,7 +82,14 @@ class TestHelpers:
 
 class TestCompareBenchmark:
     def test_basic_uplift(self, tmp_path):
-        bench = _make_bench(no_skill_score=0.8, with_skill_score=1.0)
+        bench = _make_bench(
+            no_skill_result_score=0.7,
+            with_skill_result_score=1.0,
+            no_skill_result_pass_rate=0.5,
+            with_skill_result_pass_rate=1.0,
+            no_skill_score=0.8,
+            with_skill_score=1.0,
+        )
         _write_bench(tmp_path, bench)
         store = BenchmarkStore(tmp_path)
         comp = SkillComparator(store=store, task_loader=None)
@@ -90,19 +103,30 @@ class TestCompareBenchmark:
         assert len(by_task) == 1
         delta = by_task[0]
         assert delta["task_id"] == "csv_analysis_clean_general"
+        assert delta["baseline_result_score"] == pytest.approx(0.7)
+        assert delta["target_result_score"] == pytest.approx(1.0)
+        assert delta["result_score_uplift"] == pytest.approx(0.3)
+        assert delta["baseline_result_pass_rate"] == pytest.approx(0.5)
+        assert delta["target_result_pass_rate"] == pytest.approx(1.0)
         assert delta["baseline_score"] == pytest.approx(0.8)
         assert delta["target_score"] == pytest.approx(1.0)
         assert delta["score_uplift"] == pytest.approx(0.2)
         assert delta["verdict"] == "positive"
 
     def test_negative_uplift(self, tmp_path):
-        bench = _make_bench(no_skill_score=1.0, with_skill_score=0.7)
+        bench = _make_bench(
+            no_skill_result_score=1.0,
+            with_skill_result_score=0.6,
+            no_skill_score=1.0,
+            with_skill_score=0.7,
+        )
         _write_bench(tmp_path, bench)
         store = BenchmarkStore(tmp_path)
         comp = SkillComparator(store=store, task_loader=None)
         result = comp.compare_benchmark("bench_001")
 
         delta = result["comparisons"]["by_task"][0]
+        assert delta["result_score_uplift"] == pytest.approx(-0.4)
         assert delta["score_uplift"] == pytest.approx(-0.3)
         assert delta["verdict"] == "negative"
 
@@ -144,7 +168,12 @@ class TestCompareBenchmark:
 
 class TestSkillSummary:
     def test_single_skill_summary(self, tmp_path):
-        bench = _make_bench(no_skill_score=0.8, with_skill_score=1.0)
+        bench = _make_bench(
+            no_skill_result_score=0.7,
+            with_skill_result_score=1.0,
+            no_skill_score=0.8,
+            with_skill_score=1.0,
+        )
         _write_bench(tmp_path, bench)
 
         mock_loader = MagicMock()
@@ -158,6 +187,9 @@ class TestSkillSummary:
         assert len(by_skill) == 1
         assert by_skill[0]["skill"] == "csv-data-summarizer"
         assert by_skill[0]["tasks"] == 1
+        assert by_skill[0]["baseline_result_avg"] == pytest.approx(0.7)
+        assert by_skill[0]["target_result_avg"] == pytest.approx(1.0)
+        assert by_skill[0]["avg_result_score_uplift"] == pytest.approx(0.3)
         assert by_skill[0]["baseline_avg"] == pytest.approx(0.8)
         assert by_skill[0]["skill_avg"] == pytest.approx(1.0)
         assert by_skill[0]["avg_uplift"] == pytest.approx(0.2)

@@ -710,5 +710,213 @@
     "duration_ms": 48320,
     "tool_calls": 2,
     "created_at": "2026-04-08T03:43:34.290+00:00"
+  },
+  {
+    "run_id": "run_20260408_084219_bc8085",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-clean-financial--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 94250,
+    "tool_calls": 3,
+    "created_at": "2026-04-08T08:43:53.640+00:00"
+  },
+  {
+    "run_id": "run_20260408_084354_3ed601",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-clean-financial--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 45341,
+    "tool_calls": 6,
+    "created_at": "2026-04-08T08:44:40.110+00:00"
+  },
+  {
+    "run_id": "run_20260408_084441_4f64dc",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-clean-general--no-skill--t1",
+    "task_id": "csv_analysis_clean_general",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 0.75,
+    "duration_ms": 19105,
+    "tool_calls": 1,
+    "created_at": "2026-04-08T08:45:00.334+00:00"
+  },
+  {
+    "run_id": "run_20260408_084501_010e91",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-clean-general--with-skill--t1",
+    "task_id": "csv_analysis_clean_general",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 125906,
+    "tool_calls": 4,
+    "created_at": "2026-04-08T08:47:07.329+00:00"
+  },
+  {
+    "run_id": "run_20260408_084708_1c51e4",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-dirty-headers--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 60502,
+    "tool_calls": 3,
+    "created_at": "2026-04-08T08:48:08.929+00:00"
+  },
+  {
+    "run_id": "run_20260408_084810_f00e59",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-dirty-headers--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 55155,
+    "tool_calls": 3,
+    "created_at": "2026-04-08T08:49:05.242+00:00"
+  },
+  {
+    "run_id": "run_20260408_084906_facf0b",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-large-csv--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 0.97,
+    "duration_ms": 283751,
+    "tool_calls": 11,
+    "created_at": "2026-04-08T08:53:50.124+00:00"
+  },
+  {
+    "run_id": "run_20260408_085351_167abe",
+    "session_id": "bench-20260408-084217-06ae09--csv-analysis-large-csv--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 274354,
+    "tool_calls": 8,
+    "created_at": "2026-04-08T08:58:25.604+00:00"
+  },
+  {
+    "run_id": "run_20260408_093604_24124f",
+    "session_id": "bench-20260408-093602-425b01--csv-analysis-clean-financial--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 105100,
+    "tool_calls": 5,
+    "created_at": "2026-04-08T09:37:49.104+00:00"
+  },
+  {
+    "run_id": "run_20260408_093750_ea3f4e",
+    "session_id": "bench-20260408-093602-425b01--csv-analysis-clean-financial--no-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 48721,
+    "tool_calls": 3,
+    "created_at": "2026-04-08T09:38:38.912+00:00"
+  },
+  {
+    "run_id": "run_20260408_093840_9065a0",
+    "session_id": "bench-20260408-093602-425b01--csv-analysis-clean-financial--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 33414,
+    "tool_calls": 4,
+    "created_at": "2026-04-08T09:39:13.510+00:00"
+  },
+  {
+    "run_id": "run_20260408_093914_8dadf2",
+    "session_id": "bench-20260408-093602-425b01--csv-analysis-clean-financial--with-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 36328,
+    "tool_calls": 4,
+    "created_at": "2026-04-08T09:39:51.211+00:00"
+  },
+  {
+    "run_id": "run_20260408_095148_2e0163",
+    "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 13720,
+    "tool_calls": 2,
+    "created_at": "2026-04-08T09:52:02.569+00:00"
+  },
+  {
+    "run_id": "run_20260408_095203_2f0b57",
+    "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--no-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 27097,
+    "tool_calls": 2,
+    "created_at": "2026-04-08T09:52:30.776+00:00"
+  },
+  {
+    "run_id": "run_20260408_095231_b24f3e",
+    "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "fin-advisor-math"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 12161,
+    "tool_calls": 1,
+    "created_at": "2026-04-08T09:52:43.961+00:00"
+  },
+  {
+    "run_id": "run_20260408_095245_964611",
+    "session_id": "bench-20260408-095146-282ba8--finance-cli-years-to-target--with-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "fin-advisor-math"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 9697,
+    "tool_calls": 1,
+    "created_at": "2026-04-08T09:52:54.712+00:00"
   }
 ]

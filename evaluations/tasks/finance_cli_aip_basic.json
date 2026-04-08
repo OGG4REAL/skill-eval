@@ -2,9 +2,9 @@
   "task_id": "finance_cli_aip_basic",
   "group": "finance_uplift",
   "eval_type": "uplift",
-  "description": "验证最典型 Tier 1 CLI 定投测算场景：skill 是否直接调用 CLI 并带风险提示",
+  "description": "验证典型定投测算场景下，agent 是否能返回可直接校验的结构化 JSON 结果。",
   "input": {
-    "user_query": "每月定投 3000 元，年化 8%，连续 10 年，最终大概能有多少钱？请直接给出测算结果。",
+    "user_query": "每月定投 3000 元，按年化 8%，连续 10 年，最终大概能有多少钱？请只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：final_value、total_invested、profit、return_rate。",
     "session_setup": {
       "uploads": [],
       "workspace_files": [],
@@ -33,5 +33,58 @@
   },
   "routing_expectation": {
     "should_activate": ["fin-advisor-math"]
+  },
+  "output_contract": {
+    "format": "json_only",
+    "required_fields": [
+      "final_value",
+      "total_invested",
+      "profit",
+      "return_rate"
+    ],
+    "notes": [
+      "不要输出 Markdown 代码块",
+      "final_value、total_invested、profit 返回数字",
+      "return_rate 返回带百分号的字符串"
+    ]
+  },
+  "ground_truth": {
+    "final_value": 548838.11,
+    "total_invested": 360000,
+    "profit": 188838.11,
+    "return_rate": "52.46%"
+  },
+  "verifier": {
+    "mode": "rubric",
+    "target": "final_response_json",
+    "checks": [
+      {
+        "id": "final_value",
+        "type": "numeric_tolerance",
+        "path": "final_value",
+        "tolerance": 0.01,
+        "weight": 0.35
+      },
+      {
+        "id": "total_invested",
+        "type": "numeric_tolerance",
+        "path": "total_invested",
+        "tolerance": 0.01,
+        "weight": 0.2
+      },
+      {
+        "id": "profit",
+        "type": "numeric_tolerance",
+        "path": "profit",
+        "tolerance": 0.01,
+        "weight": 0.25
+      },
+      {
+        "id": "return_rate",
+        "type": "exact_match",
+        "path": "return_rate",
+        "weight": 0.2
+      }
+    ]
   }
 }

@@ -7,6 +7,7 @@ from __future__ import annotations
 from .models import RunRecord, TrajectoryEvent, EvalRecord, ArtifactsRecord, RunIndexEntry
 from .recorder import RunRecorder
 from .scorer import RuleScorer
+from .verifier import ResultVerifier
 from .registry import RunsRegistry
 from .task_loader import TaskLoader, TaskLoadError
 from .variant_manager import VariantManager, VariantResolutionError
@@ -20,6 +21,7 @@ __all__ = [
     "RunIndexEntry",
     "RunRecorder",
     "RuleScorer",
+    "ResultVerifier",
     "RunsRegistry",
     "TaskLoader",
     "TaskLoadError",

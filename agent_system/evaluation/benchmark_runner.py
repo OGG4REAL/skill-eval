@@ -184,6 +184,7 @@ class BenchmarkRunner:
             "duration_ms": None,
             "tool_calls": None,
             "tool_errors": None,
+            "final_response_present": None,
             "score": None,
         }
         case_skills_dir: Path | None = None
@@ -243,6 +244,7 @@ class BenchmarkRunner:
         # 4. 读取 run 产出并重新评分
         try:
             run_record, trajectory, artifacts = self._load_run_outputs(session_id, run_id)
+            run_dir = self._sessions_root / session_id / "runs" / run_id
             final_present = bool(response_text and response_text.strip())
             eval_record = self._scorer.score_task_run(
                 task=task,
@@ -250,6 +252,9 @@ class BenchmarkRunner:
                 trajectory=trajectory,
                 artifacts=artifacts,
                 final_response_present=final_present,
+                final_response_text=response_text,
+                session_id=session_id,
+                run_dir=run_dir,
             )
             case["run_status"] = run_record.status
             task_success = eval_record.scores.get("task_success")
@@ -257,8 +262,12 @@ class BenchmarkRunner:
             case["duration_ms"] = run_record.duration_ms
             case["tool_calls"] = run_record.tool_calls
             case["tool_errors"] = run_record.tool_errors
+            case["final_response_present"] = final_present
             case["score"] = {
                 "weighted_score": eval_record.metrics.get("weighted_score"),
+                "result_score": eval_record.scores.get("result_score"),
+                "result_pass": eval_record.metrics.get("result_pass"),
+                "result_detail": eval_record.metrics.get("result_detail"),
                 "scores": eval_record.scores,
                 "notes": eval_record.notes,
             }
@@ -405,6 +414,16 @@ class BenchmarkRunner:
                 for c in grp
                 if c.get("score") and c["score"].get("weighted_score") is not None
             ]
+            rs_values = [
+                c["score"]["result_score"]
+                for c in grp
+                if c.get("score") and c["score"].get("result_score") is not None
+            ]
+            rp_values = [
+                c["score"]["result_pass"]
+                for c in grp
+                if c.get("score") and c["score"].get("result_pass") is not None
+            ]
             dur_values = [c["duration_ms"] for c in grp if c.get("duration_ms") is not None]
             tc_values = [c["tool_calls"] for c in grp if c.get("tool_calls") is not None]
             te_values = [c["tool_errors"] for c in grp if c.get("tool_errors") is not None]
@@ -417,6 +436,9 @@ class BenchmarkRunner:
                 "variant_id": vid,
                 "trials": total,
                 "pass_rate": round(passed / total, 4) if total else 0,
+                "result_pass_rate": round(sum(1 for v in rp_values if v) / len(rp_values), 4)
+                if rp_values else None,
+                "avg_result_score": _avg(rs_values),
                 "avg_weighted_score": _avg(ws_values),
                 "avg_duration_ms": _avg(dur_values),
                 "avg_tool_calls": _avg(tc_values),

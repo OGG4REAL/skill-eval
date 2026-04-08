@@ -19,13 +19,18 @@ from __future__ import annotations
 
 import fnmatch
 import posixpath
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .models import EvalRecord, RunRecord
+from .verifier import ResultVerifier
 
 
 class RuleScorer:
     """基于规则的评分器，同时兼容 Phase 1 旧路径和 Phase 2 task-aware 路径"""
+
+    def __init__(self):
+        self._verifier = ResultVerifier()
 
     @staticmethod
     def _normalize_workspace_path(path: str) -> str:
@@ -120,6 +125,9 @@ class RuleScorer:
         trajectory: List[dict],
         artifacts: List[str],
         final_response_present: bool,
+        final_response_text: str = "",
+        session_id: str | None = None,
+        run_dir: str | Path | None = None,
     ) -> EvalRecord:
         """
         Task-aware 评分入口（benchmark 路径）。
@@ -134,7 +142,15 @@ class RuleScorer:
 
         try:
             return self._score_task_run_inner(
-                task, run, trajectory, artifacts, final_response_present, task_id
+                task=task,
+                run=run,
+                trajectory=trajectory,
+                artifacts=artifacts,
+                final_response_present=final_response_present,
+                final_response_text=final_response_text,
+                session_id=session_id,
+                run_dir=run_dir,
+                task_id=task_id,
             )
         except Exception as e:
             return EvalRecord(
@@ -145,6 +161,7 @@ class RuleScorer:
                 metrics={},
                 scores={
                     "task_success": None,
+                    "result_score": None,
                     "signal_match": None,
                     "artifact_match": None,
                     "tool_efficiency": None,
@@ -160,6 +177,9 @@ class RuleScorer:
         trajectory: List[dict],
         artifacts: List[str],
         final_response_present: bool,
+        final_response_text: str,
+        session_id: str | None,
+        run_dir: str | Path | None,
         task_id: str,
     ) -> EvalRecord:
         notes: List[str] = []
@@ -172,41 +192,61 @@ class RuleScorer:
         notes.extend(criteria_notes)
         detail_metrics["pass_criteria"] = criteria_detail
 
-        # 2. task_success
-        task_success = self._score_task_success_aware(run, criteria_ok)
+        # 2. result-first verifier
+        result_detail = self._verifier.verify(
+            task=task,
+            run=run,
+            artifacts=artifacts,
+            final_response_text=final_response_text,
+            final_response_present=final_response_present,
+            session_id=session_id,
+            run_dir=run_dir,
+        )
+        detail_metrics["result_detail"] = result_detail
+        detail_metrics["result_pass"] = result_detail.get("passed")
+        detail_metrics["rubric_score"] = result_detail.get("score")
+        if result_detail.get("failure_reason"):
+            notes.append(f"result 验证失败: {result_detail['failure_reason']}")
 
-        # 3. signal_match
+        result_score = result_detail.get("score")
+
+        # 3. task_success
+        task_success = self._score_task_success_aware(run, criteria_ok, result_detail)
+
+        # 4. signal_match
         signal_score, signal_notes, signal_detail = self._score_signal_match(
             task, run, trajectory
         )
         notes.extend(signal_notes)
         detail_metrics["signal_match_detail"] = signal_detail
 
-        # 4. artifact_match
+        # 5. artifact_match
         artifact_score, artifact_notes, artifact_detail = self._score_artifact_match(
             task, artifacts
         )
         notes.extend(artifact_notes)
         detail_metrics["artifact_match_detail"] = artifact_detail
 
-        # 5. tool_efficiency（复用旧逻辑）
+        # 6. tool_efficiency（复用旧逻辑）
         tool_efficiency = self._score_tool_efficiency(run)
 
-        # 6. trajectory_quality（复用旧逻辑）
+        # 7. trajectory_quality（复用旧逻辑）
         trajectory_quality = self._score_trajectory_quality(run)
 
         scores: Dict[str, Optional[float]] = {
             "task_success": task_success,
+            "result_score": result_score,
             "signal_match": signal_score,
             "artifact_match": artifact_score,
             "tool_efficiency": tool_efficiency,
             "trajectory_quality": trajectory_quality,
         }
 
-        # 7. weighted_score
-        weights = task.get("scoring_weights", {})
+        # 8. weighted_score
+        weights = self._resolve_scoring_weights(task, scores)
         weighted = self._compute_weighted_score(scores, weights)
         detail_metrics["weighted_score"] = weighted
+        detail_metrics["scoring_weights_used"] = weights
 
         detail_metrics["duration_ms"] = run.duration_ms
         detail_metrics["iterations"] = run.iterations
@@ -227,12 +267,21 @@ class RuleScorer:
     # ── 内部评分辅助 ─────────────────────────────────────────
 
     def _score_task_success_aware(
-        self, run: RunRecord, criteria_ok: bool
+        self,
+        run: RunRecord,
+        criteria_ok: bool,
+        result_detail: Dict[str, Any],
     ) -> float:
-        """task_success = run 基础成功 AND pass_criteria 全部通过"""
+        """task_success = run 基础成功 AND pass_criteria 全部通过 AND verifier/rubric 通过"""
         if run.status != "passed":
             return 0.0
-        return 1.0 if criteria_ok else 0.0
+        if not criteria_ok:
+            return 0.0
+
+        if result_detail.get("configured"):
+            return 1.0 if result_detail.get("passed") else 0.0
+
+        return 1.0
 
     def _evaluate_pass_criteria(
         self, task: dict, run: RunRecord, final_response_present: bool
@@ -470,6 +519,32 @@ class RuleScorer:
         if total_weight == 0.0:
             return 0.0
         return round(weighted_sum / total_weight, 4)
+
+    @staticmethod
+    def _resolve_scoring_weights(
+        task: dict,
+        scores: Dict[str, Optional[float]],
+    ) -> Dict[str, float]:
+        raw_weights = dict(task.get("scoring_weights", {}))
+        result_score = scores.get("result_score")
+        if result_score is None:
+            return raw_weights
+
+        if "result_score" in raw_weights or "rubric_score" in raw_weights:
+            normalized: Dict[str, float] = {}
+            for key, value in raw_weights.items():
+                effective_key = "result_score" if key == "rubric_score" else key
+                normalized[effective_key] = normalized.get(effective_key, 0.0) + value
+            return normalized
+
+        # 向后兼容旧 task 的 scoring_weights，同时把结果分提升为主导权重。
+        return {
+            "result_score": 0.65,
+            "signal_match": raw_weights.get("signal_match", 0.10),
+            "artifact_match": raw_weights.get("artifact_match", 0.05),
+            "tool_efficiency": raw_weights.get("tool_efficiency", 0.10),
+            "trajectory_quality": raw_weights.get("trajectory_quality", 0.10),
+        }
 
     # ── Phase 1 共用评分子项 ─────────────────────────────────
 
