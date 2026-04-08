@@ -1,4 +1,0 @@
-refactor: 切换 Phase2 到结果优先评分并收束评测任务
-
-引入 verifier 驱动的 result-first 评分主线，并同步收束 csv 与金融评测 task 的输出契约、ground truth 和校验规则。
-保留当前 benchmark 跑数结果作为这一版验证快照，便于后续继续收紧 task query 与评分细节。
