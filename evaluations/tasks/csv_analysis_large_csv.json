@@ -1,0 +1,118 @@
+{
+  "task_id": "csv_analysis_large_csv",
+  "group": "csv_uplift",
+  "eval_type": "uplift",
+  "description": "验证 skill 在大文件场景下，是否仍能稳定完成脚本化聚合并返回可直接对分的 JSON 结果。",
+  "input": {
+    "user_query": "请分析我上传的大型财务 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、revenue_by_year、weighted_net_margin_pct、top_product_line_by_total_revenue、top_product_line_revenue。计算规则：revenue_by_year 必须是对象，键固定为字符串 \"2023\" 和 \"2024\"；weighted_net_margin_pct = net_income 总和 / total_revenue 总和 * 100，保留两位小数；金额和比例都返回数字，不要带逗号或百分号。",
+    "session_setup": {
+      "uploads": ["csv/financial_large.csv"],
+      "workspace_files": [],
+      "history_seed": []
+    }
+  },
+  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
+  "target_skills": ["csv-data-summarizer"],
+  "expected_signals": [
+    "skill:csv-data-summarizer",
+    "tool:Read:/workspace/uploads/",
+    "tool:Write:/workspace/temp/",
+    "tool:Bash"
+  ],
+  "forbidden_signals": [],
+  "expected_artifacts": [
+    "/workspace/temp/*.py"
+  ],
+  "pass_criteria": {
+    "final_response_non_empty": true,
+    "tool_errors_max": 0,
+    "iterations_max": 14
+  },
+  "scoring_weights": {
+    "task_success": 0.40,
+    "signal_match": 0.20,
+    "artifact_match": 0.10,
+    "tool_efficiency": 0.10,
+    "trajectory_quality": 0.20
+  },
+  "routing_expectation": {
+    "should_activate": ["csv-data-summarizer"]
+  },
+  "output_contract": {
+    "format": "json_only",
+    "required_fields": [
+      "row_count",
+      "revenue_by_year",
+      "weighted_net_margin_pct",
+      "top_product_line_by_total_revenue",
+      "top_product_line_revenue"
+    ],
+    "notes": [
+      "不要输出 Markdown 代码块",
+      "revenue_by_year 的键固定为字符串 2023 和 2024",
+      "weighted_net_margin_pct 保留两位小数"
+    ]
+  },
+  "ground_truth": {
+    "row_count": 5400,
+    "revenue_by_year": {
+      "2023": 1805280000,
+      "2024": 672840000
+    },
+    "weighted_net_margin_pct": 13.21,
+    "top_product_line_by_total_revenue": "SaaS Platform",
+    "top_product_line_revenue": 1293000000
+  },
+  "verifier": {
+    "mode": "rubric",
+    "target": "final_response_json",
+    "checks": [
+      {
+        "id": "row_count",
+        "type": "exact_match",
+        "path": "row_count",
+        "expected": 5400,
+        "weight": 0.15
+      },
+      {
+        "id": "revenue_2023",
+        "type": "numeric_tolerance",
+        "path": "revenue_by_year.2023",
+        "expected": 1805280000,
+        "tolerance": 0.01,
+        "weight": 0.2
+      },
+      {
+        "id": "revenue_2024",
+        "type": "numeric_tolerance",
+        "path": "revenue_by_year.2024",
+        "expected": 672840000,
+        "tolerance": 0.01,
+        "weight": 0.2
+      },
+      {
+        "id": "weighted_net_margin_pct",
+        "type": "numeric_tolerance",
+        "path": "weighted_net_margin_pct",
+        "expected": 13.21,
+        "tolerance": 0.01,
+        "weight": 0.15
+      },
+      {
+        "id": "top_product_line_by_total_revenue",
+        "type": "exact_match",
+        "path": "top_product_line_by_total_revenue",
+        "expected": "SaaS Platform",
+        "weight": 0.1
+      },
+      {
+        "id": "top_product_line_revenue",
+        "type": "numeric_tolerance",
+        "path": "top_product_line_revenue",
+        "expected": 1293000000,
+        "tolerance": 0.01,
+        "weight": 0.2
+      }
+    ]
+  }
+}

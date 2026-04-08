@@ -1,0 +1,41 @@
+{
+  "task_id": "finance_tier2_multi_rate_compare",
+  "group": "finance_uplift",
+  "eval_type": "uplift",
+  "description": "验证 CLI 单次 type 无法直接覆盖时，Agent 是否会进入 Tier 2 并 import 已有函数完成组合编排",
+  "input": {
+    "user_query": "如果本金是 30 万，目标是 100 万，请比较年化 6%、8%、10%、12% 四种收益率下分别需要多少年，并做一个结构化对比。",
+    "session_setup": {
+      "uploads": [],
+      "workspace_files": [],
+      "history_seed": []
+    }
+  },
+  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
+  "target_skills": ["fin-advisor-math"],
+  "expected_signals": [
+    "skill:fin-advisor-math",
+    "tool:Read:/workspace/skills/fin-advisor-math/scripts/finance_formulas.py",
+    "tool:Write:/workspace/temp/",
+    "tool:Bash"
+  ],
+  "forbidden_signals": [],
+  "expected_artifacts": [
+    "/workspace/temp/*.py"
+  ],
+  "pass_criteria": {
+    "final_response_non_empty": true,
+    "tool_errors_max": 0,
+    "iterations_max": 12
+  },
+  "scoring_weights": {
+    "task_success": 0.40,
+    "signal_match": 0.20,
+    "artifact_match": 0.10,
+    "tool_efficiency": 0.10,
+    "trajectory_quality": 0.20
+  },
+  "routing_expectation": {
+    "should_activate": ["fin-advisor-math"]
+  }
+}

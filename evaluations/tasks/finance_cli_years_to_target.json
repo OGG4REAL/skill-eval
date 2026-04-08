@@ -1,0 +1,37 @@
+{
+  "task_id": "finance_cli_years_to_target",
+  "group": "finance_uplift",
+  "eval_type": "uplift",
+  "description": "验证 Tier 1 年限反推场景：skill 是否正确选择 --type years 并输出结构化结果",
+  "input": {
+    "user_query": "30 万本金，按年化 8% 复利增长，大约多久能到 100 万？请直接测算。",
+    "session_setup": {
+      "uploads": [],
+      "workspace_files": [],
+      "history_seed": []
+    }
+  },
+  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
+  "target_skills": ["fin-advisor-math"],
+  "expected_signals": [
+    "skill:fin-advisor-math",
+    "tool:Bash"
+  ],
+  "forbidden_signals": [],
+  "expected_artifacts": [],
+  "pass_criteria": {
+    "final_response_non_empty": true,
+    "tool_errors_max": 0,
+    "iterations_max": 8
+  },
+  "scoring_weights": {
+    "task_success": 0.40,
+    "signal_match": 0.20,
+    "artifact_match": 0.10,
+    "tool_efficiency": 0.10,
+    "trajectory_quality": 0.20
+  },
+  "routing_expectation": {
+    "should_activate": ["fin-advisor-math"]
+  }
+}

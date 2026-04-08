@@ -51,6 +51,8 @@
 - `llm_client.py` 的 `_meta` 字段是追加的，不影响 `core.py` 对已有字段的消费
 - recorder 文件句柄在 `finalize()` 中关闭，异常路径也需确保关闭
 - 评分失败不阻塞主流程，降级写入空分数
+- 评估文档当前同时存在根目录和 `docs/Agent&Skills_Evals/` 副本，后续应以 `docs/Agent&Skills_Evals/` 为主，避免文档分叉
+- 当前阶段不适合先做泛化 Agent Benchmark，`Phase 2` 主线已收敛为 `Skills Eval Harness + Skill Uplift / Routing Eval`
 
 ## Phase 1: Trajectory 与最小 Eval（已完成）
 
@@ -92,7 +94,19 @@ sessions/{session_id}/runs/{run_id}/
 
 ## 后续待办
 
-- Phase 2 衔接点：固定任务集 + skill benchmark matrix + 批量回放
+- `Phase 2` 规划文档：`docs/phase2-benchmark-skill-eval-plan.md`
+- `Phase 2` 核心目标：以 `Skills Eval` 为主线，先做本地薄 harness，再做 `Phase A/B/C`
+- `Phase 2` 主文档归档：`docs/Agent&Skills_Evals/phase2-benchmark-skill-eval-plan.md`
+- `Skills Eval Harness` 设计稿：`docs/Agent&Skills_Evals/skills-eval-harness-minimal-design.md`
+- `Phase 2` 代码阶段入口：`docs/Agent&Skills_Evals/implementation-plan.md`
+- `Phase 2` 当前主问题已从“runner 是否跑通”转为“scorer 是否真正评估结果”；下一阶段优先做 verifier / rubric（`phase2-12`）
+- `Phase A`：`Skills Uplift Eval`，优先支持 `no_skill / with_skill / skill_v1 / skill_v2`
+- `Phase B`：`Skill Routing / Integration Eval`，补 `activation precision / recall / F1`
+- `Phase C`：外部平台接入与更薄的 Base Agent Eval，放在本地 harness 跑通之后
+- `Phase 2` 仍然坚持本地事实源，不接外部 eval 平台
+- 联网能力规划文档：`docs/web-search-tool-design.md`
+- 联网能力当前路线：先做 provider-neutral 的 `WebSearch`，底层接 `Tavily`，后续再按真实场景补 `WebExtract`
+- 联网工具命名与返回结构不直接透传 provider 原生 schema，优先保持 Agent 能力语义稳定
 - 为 `workspace` 接口补测试
 - 为中间文件查看器补 JSON/日志专用增强视图
 - 接入 CopilotKit 标准 Runtime

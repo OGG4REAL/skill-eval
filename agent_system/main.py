@@ -25,7 +25,14 @@ else:
     console = Console()
 
 
-def setup_system(log_file: str = "chat_history.log", session_id: str | None = None):
+def setup_system(
+    log_file: str = "chat_history.log",
+    session_id: str | None = None,
+    allowed_skills: set[str] | None = None,
+    variant_context: dict | None = None,
+    sessions_root: Path | None = None,
+    skills_dir: Path | None = None,
+):
     """
     初始化 Agent 系统
     
@@ -38,6 +45,11 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
     Args:
         log_file: 聊天记录保存路径
         session_id: 可选的会话 ID
+        allowed_skills: 允许暴露的技能集合（用于 benchmark variant 控制）。
+                        None 表示不限制，保持默认行为。
+        variant_context: 可选的 variant 实验条件，会写入 RunRecord metadata。
+        sessions_root: 可选的会话根目录。None 使用 Config.SESSIONS_ROOT。
+        skills_dir: 可选的技能目录。None 使用 Config.SKILLS_DIR。
     
     Returns:
         Agent 实例
@@ -57,7 +69,9 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
     
     # 2. 初始化会话目录
     derived_session_id = derive_session_id(log_file, session_id)
-    session_base, session_uploads, session_output, session_log = ensure_session_dirs(derived_session_id)
+    session_base, session_uploads, session_output, session_log = ensure_session_dirs(
+        derived_session_id, sessions_root=sessions_root
+    )
     
     console.print(f"[dim]会话 ID: {derived_session_id}[/dim]")
     console.print(f"[dim]工作目录: {session_base}[/dim]")
@@ -68,8 +82,9 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
         log_file = str(session_log)
 
     # 3. 初始化技能管理器（只加载元数据）
-    console.print(f"\n[cyan]扫描技能目录:[/cyan] {Config.SKILLS_DIR}")
-    skill_manager = SkillManager(Config.SKILLS_DIR)
+    effective_skills_dir = skills_dir or Config.SKILLS_DIR
+    console.print(f"\n[cyan]扫描技能目录:[/cyan] {effective_skills_dir}")
+    skill_manager = SkillManager(effective_skills_dir, allowed_skills=allowed_skills)
     
     available_skills = skill_manager.list_skills()
     if available_skills:
@@ -93,6 +108,7 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
     mcp_tools, mcp_client = create_mcp_tools(
         session_id=derived_session_id,
         uploads_dir=str(session_uploads),
+        skills_dir=effective_skills_dir,
     )
     for tool in mcp_tools:
         tool_registry.register(tool)
@@ -111,7 +127,9 @@ def setup_system(log_file: str = "chat_history.log", session_id: str | None = No
         skill_manager=skill_manager,
         tool_registry=tool_registry,
         log_file=log_file,
-        uploads_dir=session_uploads
+        uploads_dir=session_uploads,
+        variant_context=variant_context,
+        sessions_root=sessions_root,
     )
     
     # 保存 MCP 客户端引用以便清理（Phase 3: 使用工厂函数显式返回的引用）

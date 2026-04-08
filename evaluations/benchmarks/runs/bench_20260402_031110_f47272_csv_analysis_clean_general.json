@@ -1,0 +1,112 @@
+{
+  "benchmark_id": "bench_20260402_031110_f47272",
+  "started_at": "2026-04-02T03:11:10.883+00:00",
+  "finished_at": "2026-04-02T03:12:45.824+00:00",
+  "scope": {
+    "task_id": "csv_analysis_clean_general",
+    "group": null,
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill"
+    ],
+    "trials": 1
+  },
+  "summary": {
+    "cases_total": 2,
+    "cases_succeeded": 2,
+    "cases_failed": 0
+  },
+  "cases": [
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-031110-f47272--csv-analysis-clean-general--no-skill--t1",
+      "run_id": "run_20260402_031113_7ad4ee",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 26095,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.96,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 0.8,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 缺失: skill:csv-data-summarizer"
+        ]
+      }
+    },
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-031110-f47272--csv-analysis-clean-general--with-skill--t1",
+      "run_id": "run_20260402_031140_39f6ed",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "csv-data-summarizer"
+        ],
+        "pre_injected_skills": [
+          "csv-data-summarizer"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 64487,
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 1.0,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 0.96,
+        "avg_duration_ms": 26095.0,
+        "avg_tool_calls": 3.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 64487.0,
+        "avg_tool_calls": 4.0,
+        "avg_tool_errors": 0.0
+      }
+    ]
+  }
+}

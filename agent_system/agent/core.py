@@ -38,7 +38,9 @@ class Agent:
     """智能 Agent：负责对话循环和工具调用"""
     
     def __init__(self, skill_manager: SkillManager, tool_registry: ToolRegistry, 
-                 log_file: str = "chat_history.log", uploads_dir: str = None):
+                 log_file: str = "chat_history.log", uploads_dir: str = None,
+                 variant_context: Optional[Dict[str, Any]] = None,
+                 sessions_root: Optional[Path] = None):
         """
         初始化 Agent
         
@@ -47,12 +49,17 @@ class Agent:
             tool_registry: 工具注册表
             log_file: 聊天记录保存路径
             uploads_dir: 用户上传文件目录
+            variant_context: 可选的 variant 实验条件（VariantManager.resolve_variant() 输出）。
+                             传入后会写入每次 run 的 RunRecord metadata。
+            sessions_root: 可选的会话根目录。None 使用 Config.SESSIONS_ROOT。
         """
         self.skill_manager = skill_manager
         self.tool_registry = tool_registry
         self.llm_client = LLMClient()
         self.conversation_history: List[Dict[str, Any]] = []
         self.uploads_dir = Path(uploads_dir) if uploads_dir else None
+        self.variant_context: Optional[Dict[str, Any]] = variant_context
+        self.sessions_root: Path = Path(sessions_root) if sessions_root else Config.SESSIONS_ROOT
         
         # 初始化结构化历史记录文件 (与日志文件同目录)
         self.log_file = Path(log_file)
@@ -200,6 +207,67 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
                 f.write(f"Agent 最终回复:\n{agent_response}\n\n")
         except Exception as e:
             console.print(f"[yellow]警告：保存日志失败: {e}[/yellow]")
+
+    def _inject_skill_context(
+        self,
+        skill_name: str,
+        recorder: RunRecorder,
+        execution_log: List[str],
+        emit: Optional[LogCallback] = None,
+        args: str = "",
+    ) -> None:
+        """
+        复用日常 Skill 注入范式，将 Skill 内容注入到对话历史。
+
+        这里不走 LLM 触发的 Skill tool_call 计数，因为 benchmark 预注入场景
+        关注的是“已加载 Skill 后开始任务”的效果，而不是 routing/选择成本。
+        """
+        skill_tool = self.tool_registry.get("Skill")
+        if not skill_tool or not getattr(skill_tool, "skill_injector", False):
+            raise RuntimeError("Skill 工具未注册，无法执行技能注入")
+
+        result_str = skill_tool.execute(skill=skill_name, args=args)
+        if result_str.startswith("Error:"):
+            raise RuntimeError(result_str)
+
+        injection_content = skill_tool.get_injection_content()
+        self.conversation_history.append({
+            "role": "assistant",
+            "content": ""
+        })
+        self.conversation_history.append({
+            "role": "user",
+            "content": injection_content
+        })
+
+        recorder.record_skill_injected(skill_name)
+        console.print(f"[cyan]预注入技能 {skill_name} 到上下文[/cyan]")
+        execution_log.append(f"预注入技能: {skill_name}")
+        if emit:
+            emit("skill_inject", f"技能 {skill_name} 已预注入")
+
+    def _apply_variant_pre_injections(
+        self,
+        recorder: RunRecorder,
+        execution_log: List[str],
+        emit: Optional[LogCallback] = None,
+    ) -> None:
+        """根据 variant_context 在正式处理用户问题前预注入技能。"""
+        if not self.variant_context:
+            return
+
+        skill_names = list(self.variant_context.get("pre_injected_skills", []))
+        if not skill_names:
+            return
+
+        for skill_name in skill_names:
+            self._inject_skill_context(
+                skill_name=skill_name,
+                recorder=recorder,
+                execution_log=execution_log,
+                emit=emit,
+            )
+        self._save_history()
     
     def run(self, user_input: str, max_iterations: int = None, 
             callback: LogCallback = None) -> Dict[str, Any]:
@@ -243,6 +311,16 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
         self.conversation_history = self.memory_manager.compress_history(
             self.conversation_history
         )
+
+        # 记录完整执行过程
+        execution_log = []
+
+        # benchmark 预注入：复用日常 Skill 注入内容格式，再开始处理用户问题
+        self._apply_variant_pre_injections(
+            recorder=recorder,
+            execution_log=execution_log,
+            emit=_emit,
+        )
         
         # 添加用户消息到历史
         self.conversation_history.append({
@@ -250,9 +328,6 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
             "content": user_input
         })
         self._save_history()  # 立即保存用户输入
-        
-        # 记录完整执行过程
-        execution_log = []
         
         iteration = 0
         run_status = "passed"
@@ -516,7 +591,7 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
         session_id = self.log_file.parent.name
         recorder = RunRecorder(
             session_id=session_id,
-            sessions_root=Config.SESSIONS_ROOT,
+            sessions_root=self.sessions_root,
             user_input=user_input,
         )
         # 尝试匹配 task_id
@@ -526,6 +601,14 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
             recorder.run_record.task_id = registry.match_task_id(user_input)
         except Exception:
             pass
+
+        if self.variant_context:
+            vc = self.variant_context
+            recorder.run_record.variant_id = vc.get("variant_id", "baseline")
+            recorder.run_record.enabled_skills = list(vc.get("enabled_skills", []))
+            recorder.run_record.skill_version_map = dict(vc.get("skill_version_map", {}))
+            recorder.run_record.routing_enabled = vc.get("routing_enabled")
+
         return recorder
 
     def _finalize_run(

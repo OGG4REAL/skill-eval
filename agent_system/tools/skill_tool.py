@@ -2,13 +2,13 @@
 Skill 工具模块
 实现技能加载与注入机制，对齐 Claude Code 的 Skill 工具
 """
+from pathlib import PurePosixPath
 from typing import Dict, Any
 from .base import BaseTool
 from ..constants import format_skill_marker
 
 
-# Skill 工具 description 模板
-SKILL_TOOL_DESCRIPTION_TEMPLATE = """Load a specialized skill to handle the user's task.
+SKILL_TOOL_DESCRIPTION_HEADER = """Load a specialized skill to handle the user's task.
 
 Skills provide domain-specific knowledge, workflows, and best practices. When a user's request matches a skill's domain, you MUST load that skill first to get detailed instructions.
 
@@ -17,16 +17,6 @@ CRITICAL RULES:
 2. If the task matches a skill's description, call this tool IMMEDIATELY as your FIRST action
 3. NEVER skip this tool and directly write code when a matching skill exists
 4. After loading a skill, follow its instructions precisely
-
-Examples:
-  User: "分析 test.csv 的数据"
-  → Matches "csv-data-summarizer" → Call Skill(skill="csv-data-summarizer")
-
-  User: "帮我做一个定投收益测算"
-  → Matches "fin-advisor-math" → Call Skill(skill="fin-advisor-math")
-
-  User: "创建一个新的技能"
-  → Matches "skill-creator" → Call Skill(skill="skill-creator")
 
 How to invoke:
   Skill(skill="skill-name")
@@ -68,11 +58,11 @@ class SkillTool(BaseTool):
     
     @property
     def description(self) -> str:
-        """动态生成 description，包含可用技能清单"""
+        """动态生成 description，包含可用技能清单（不含硬编码业务 skill 名称）"""
         skills_list = self.skill_manager.get_skills_for_tool_description()
         if not skills_list:
             skills_list = "(No skills available)"
-        return SKILL_TOOL_DESCRIPTION_TEMPLATE.format(skills_list=skills_list)
+        return SKILL_TOOL_DESCRIPTION_HEADER.format(skills_list=skills_list)
     
     @property
     def parameters(self) -> Dict:
@@ -129,7 +119,7 @@ class SkillTool(BaseTool):
             str: 格式化的技能注入内容
         """
         skill_name = self._pending_skill
-        skill_dir = self.skill_manager.get_skill_directory(skill_name)
+        skill_dir = PurePosixPath("/workspace/skills") / skill_name
         skill_content = self.skill_manager.get_skill_content(skill_name)
 
         # 在内容头部添加持久化标记

@@ -10,6 +10,7 @@ RunRecorder
 from __future__ import annotations
 
 import json
+import posixpath
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -73,6 +74,23 @@ class RunRecorder:
         self._step_index += 1
         return self._step_index
 
+    @staticmethod
+    def _normalize_workspace_path(path: str) -> str:
+        """统一日志中的工作区路径口径，优先使用逻辑 /workspace/... 形式。"""
+        if not isinstance(path, str) or not path:
+            return path
+
+        normalized = path.replace("\\", "/")
+        if normalized == "/workspace":
+            return normalized
+        if normalized.startswith("/workspace/"):
+            return posixpath.normpath(normalized)
+        if normalized.startswith("/"):
+            return normalized
+
+        normalized = normalized.lstrip("./")
+        return posixpath.normpath(f"/workspace/{normalized}")
+
     def _emit(self, event: TrajectoryEvent) -> None:
         try:
             line = json.dumps(event.to_dict(), ensure_ascii=False)
@@ -131,6 +149,8 @@ class RunRecorder:
         self._tool_calls += 1
         safe_args = {}
         for k, v in arguments.items():
+            if k == "path" and isinstance(v, str):
+                v = self._normalize_workspace_path(v)
             s = str(v)
             safe_args[k] = s[:200] if len(s) > 200 else v
         self._emit(TrajectoryEvent(
@@ -176,6 +196,7 @@ class RunRecorder:
         ))
 
     def record_artifact_created(self, path: str) -> None:
+        path = self._normalize_workspace_path(path)
         if path not in self._artifacts:
             self._artifacts.append(path)
         self._emit(TrajectoryEvent(

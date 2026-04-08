@@ -1,0 +1,37 @@
+{
+  "task_id": "finance_cli_mdd_basic",
+  "group": "finance_uplift",
+  "eval_type": "uplift",
+  "description": "验证 skill 覆盖风险指标序列计算（最大回撤），而不仅是时间价值公式",
+  "input": {
+    "user_query": "给定净值序列 1.0, 1.1, 0.95, 1.2, 0.8，帮我计算最大回撤并解释结果。",
+    "session_setup": {
+      "uploads": [],
+      "workspace_files": [],
+      "history_seed": []
+    }
+  },
+  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
+  "target_skills": ["fin-advisor-math"],
+  "expected_signals": [
+    "skill:fin-advisor-math",
+    "tool:Bash"
+  ],
+  "forbidden_signals": [],
+  "expected_artifacts": [],
+  "pass_criteria": {
+    "final_response_non_empty": true,
+    "tool_errors_max": 0,
+    "iterations_max": 8
+  },
+  "scoring_weights": {
+    "task_success": 0.40,
+    "signal_match": 0.20,
+    "artifact_match": 0.10,
+    "tool_efficiency": 0.10,
+    "trajectory_quality": 0.20
+  },
+  "routing_expectation": {
+    "should_activate": ["fin-advisor-math"]
+  }
+}

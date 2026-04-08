@@ -235,8 +235,7 @@ def test_skill_tool_get_injection_content():
     
     # 验证格式
     assert "Base directory for this skill:" in content, "应包含 Base directory"
-    # 路径检查需要兼容 Windows 和 Linux
-    assert "csv-data-summarizer" in str(content), "应包含技能目录路径"
+    assert "Base directory for this skill: /workspace/skills/csv-data-summarizer" in content
     assert "CSV Data Summarizer" in content, "应包含 SKILL.md 内容"
     assert "ARGUMENTS:" in content, "应包含 ARGUMENTS 段"
     assert "--output json" in content, "应包含传入的参数"

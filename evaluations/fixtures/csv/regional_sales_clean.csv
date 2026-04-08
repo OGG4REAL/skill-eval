@@ -1,0 +1,13 @@
+month,region,channel,product,orders,revenue,refunds,new_customers
+2024-01,East,Online,Standard,120,24000,1200,60
+2024-01,West,Online,Standard,95,19000,1100,45
+2024-01,South,Retail,Premium,80,17600,600,38
+2024-01,North,Retail,Standard,70,14000,700,34
+2024-02,East,Retail,Premium,130,28600,900,62
+2024-02,West,Retail,Standard,90,18000,1500,40
+2024-02,South,Online,Standard,85,17000,850,39
+2024-02,North,Online,Premium,75,16800,500,35
+2024-03,East,Online,Premium,140,30800,1400,68
+2024-03,West,Online,Premium,100,22000,1600,44
+2024-03,South,Retail,Standard,88,17600,880,41
+2024-03,North,Retail,Premium,78,17160,520,36

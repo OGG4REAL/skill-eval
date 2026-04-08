@@ -1,0 +1,86 @@
+{
+  "benchmark_id": "bench_20260401_100126_8e66e4",
+  "started_at": "2026-04-01T10:01:26.837+00:00",
+  "finished_at": "2026-04-01T10:01:46.027+00:00",
+  "scope": {
+    "task_id": "csv_analysis_clean_general",
+    "group": null,
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill"
+    ],
+    "trials": 1
+  },
+  "summary": {
+    "cases_total": 2,
+    "cases_succeeded": 0,
+    "cases_failed": 2
+  },
+  "cases": [
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench_20260401_100126_8e66e4__csv_analysis_clean_general__no_skill__t1",
+      "run_id": "run_20260401_100129_729f39",
+      "status": "failed",
+      "run_status": null,
+      "error": " | 评分失败: run.json 不存在: D:\\csv-data-summarizer\\sessions\\bench_20260401_100126_8e66e4__csv_analysis_clean_general__no_skill__t1\\runs\\run_20260401_100129_729f39\\run.json",
+      "variant": {
+        "enabled_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": null,
+      "tool_calls": null,
+      "tool_errors": null,
+      "score": null
+    },
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench_20260401_100126_8e66e4__csv_analysis_clean_general__with_skill__t1",
+      "run_id": "run_20260401_100141_d4f504",
+      "status": "failed",
+      "run_status": null,
+      "error": " | 评分失败: run.json 不存在: D:\\csv-data-summarizer\\sessions\\bench_20260401_100126_8e66e4__csv_analysis_clean_general__with_skill__t1\\runs\\run_20260401_100141_d4f504\\run.json",
+      "variant": {
+        "enabled_skills": [
+          "csv-data-summarizer"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": true
+      },
+      "duration_ms": null,
+      "tool_calls": null,
+      "tool_errors": null,
+      "score": null
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 0.0,
+        "avg_weighted_score": null,
+        "avg_duration_ms": null,
+        "avg_tool_calls": null,
+        "avg_tool_errors": null
+      },
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 0.0,
+        "avg_weighted_score": null,
+        "avg_duration_ms": null,
+        "avg_tool_calls": null,
+        "avg_tool_errors": null
+      }
+    ]
+  }
+}

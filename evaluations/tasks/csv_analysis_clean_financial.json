@@ -1,0 +1,126 @@
+{
+  "task_id": "csv_analysis_clean_financial",
+  "group": "csv_uplift",
+  "eval_type": "uplift",
+  "description": "验证 skill 在干净财务 CSV 上，是否能按财务口径计算关键聚合指标并返回严格结构化 JSON。",
+  "input": {
+    "user_query": "请分析我上传的财务 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、total_revenue、weighted_gross_margin_pct、top_product_line_by_total_revenue、top_product_line_revenue、best_quarter_by_net_income、best_quarter_net_income。计算规则：weighted_gross_margin_pct = gross_profit 总和 / total_revenue 总和 * 100，保留两位小数；best_quarter_by_net_income 的格式固定为 \"Qx YYYY\"；金额和比例都返回数字，不要带逗号或百分号。",
+    "session_setup": {
+      "uploads": ["csv/financial_clean.csv"],
+      "workspace_files": [],
+      "history_seed": []
+    }
+  },
+  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
+  "target_skills": ["csv-data-summarizer"],
+  "expected_signals": [
+    "skill:csv-data-summarizer",
+    "tool:Read:/workspace/uploads/",
+    "tool:Write:/workspace/temp/",
+    "tool:Bash"
+  ],
+  "forbidden_signals": [],
+  "expected_artifacts": [
+    "/workspace/temp/*.py"
+  ],
+  "pass_criteria": {
+    "final_response_non_empty": true,
+    "tool_errors_max": 0,
+    "iterations_max": 12
+  },
+  "scoring_weights": {
+    "task_success": 0.40,
+    "signal_match": 0.20,
+    "artifact_match": 0.10,
+    "tool_efficiency": 0.10,
+    "trajectory_quality": 0.20
+  },
+  "routing_expectation": {
+    "should_activate": ["csv-data-summarizer"]
+  },
+  "output_contract": {
+    "format": "json_only",
+    "required_fields": [
+      "row_count",
+      "total_revenue",
+      "weighted_gross_margin_pct",
+      "top_product_line_by_total_revenue",
+      "top_product_line_revenue",
+      "best_quarter_by_net_income",
+      "best_quarter_net_income"
+    ],
+    "notes": [
+      "不要输出 Markdown 代码块",
+      "weighted_gross_margin_pct 保留两位小数",
+      "best_quarter_by_net_income 格式固定为 Qx YYYY"
+    ]
+  },
+  "ground_truth": {
+    "row_count": 45,
+    "total_revenue": 20651000,
+    "weighted_gross_margin_pct": 65.22,
+    "top_product_line_by_total_revenue": "SaaS Platform",
+    "top_product_line_revenue": 10775000,
+    "best_quarter_by_net_income": "Q1 2024",
+    "best_quarter_net_income": 795160
+  },
+  "verifier": {
+    "mode": "rubric",
+    "target": "final_response_json",
+    "checks": [
+      {
+        "id": "row_count",
+        "type": "exact_match",
+        "path": "row_count",
+        "expected": 45,
+        "weight": 0.1
+      },
+      {
+        "id": "total_revenue",
+        "type": "numeric_tolerance",
+        "path": "total_revenue",
+        "expected": 20651000,
+        "tolerance": 0.01,
+        "weight": 0.2
+      },
+      {
+        "id": "weighted_gross_margin_pct",
+        "type": "numeric_tolerance",
+        "path": "weighted_gross_margin_pct",
+        "expected": 65.22,
+        "tolerance": 0.01,
+        "weight": 0.2
+      },
+      {
+        "id": "top_product_line_by_total_revenue",
+        "type": "exact_match",
+        "path": "top_product_line_by_total_revenue",
+        "expected": "SaaS Platform",
+        "weight": 0.15
+      },
+      {
+        "id": "top_product_line_revenue",
+        "type": "numeric_tolerance",
+        "path": "top_product_line_revenue",
+        "expected": 10775000,
+        "tolerance": 0.01,
+        "weight": 0.15
+      },
+      {
+        "id": "best_quarter_by_net_income",
+        "type": "exact_match",
+        "path": "best_quarter_by_net_income",
+        "expected": "Q1 2024",
+        "weight": 0.1
+      },
+      {
+        "id": "best_quarter_net_income",
+        "type": "numeric_tolerance",
+        "path": "best_quarter_net_income",
+        "expected": 795160,
+        "tolerance": 0.01,
+        "weight": 0.1
+      }
+    ]
+  }
+}

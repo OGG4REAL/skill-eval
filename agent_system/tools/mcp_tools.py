@@ -614,6 +614,7 @@ class BashTool(BaseTool):
 def create_mcp_tools(
     session_id: str = None,
     uploads_dir: str = None,
+    skills_dir: str | Path | None = None,
 ) -> Tuple[List[BaseTool], MCPClient]:
     """
     创建 MCP 工具集（Bash, Read, Write, List）及其共享的 MCPClient。
@@ -646,7 +647,7 @@ def create_mcp_tools(
     mcp_client = MCPClient(
         session_id=session_id,
         workspace_path=workspace_path,
-        skills_path=Config.SKILLS_DIR
+        skills_path=skills_dir or Config.SKILLS_DIR
     )
 
     # 创建工具

@@ -63,6 +63,9 @@ class RunRecord:
     iterations: int = 0
     tool_calls: int = 0
     tool_errors: int = 0
+    enabled_skills: List[str] = field(default_factory=list)
+    skill_version_map: Dict[str, str] = field(default_factory=dict)
+    routing_enabled: Optional[bool] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

@@ -519,6 +519,18 @@ class TestCreateMcpTools:
         for tool in tools:
             assert tool.client is mcp_client
 
+    @patch('agent_system.tools.mcp_tools.MCPClient')
+    @patch('agent_system.tools.mcp_tools.Config')
+    def test_explicit_skills_dir_is_forwarded(self, mock_config, mock_mcp_cls):
+        """显式 skills_dir 应覆盖默认 Config.SKILLS_DIR"""
+        mock_config.SESSIONS_ROOT = Path("/tmp/test_sessions")
+        mock_config.SKILLS_DIR = Path("/tmp/default_skills")
+
+        explicit_skills_dir = Path("/tmp/bench_skills")
+        create_mcp_tools(session_id="test-session", skills_dir=explicit_skills_dir)
+
+        assert mock_mcp_cls.call_args.kwargs["skills_path"] == explicit_skills_dir
+
 
 # ============================================================================
 # 7. 工具 description 路由-接口验证

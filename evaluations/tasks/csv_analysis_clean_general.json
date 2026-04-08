@@ -1,0 +1,122 @@
+{
+  "task_id": "csv_analysis_clean_general",
+  "group": "csv_uplift",
+  "eval_type": "uplift",
+  "description": "验证 skill 在干净的非财务 CSV 上，是否能按明确指标要求返回可直接校验的结构化 JSON 结果。",
+  "input": {
+    "user_query": "请分析我上传的 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、total_revenue、top_region_by_revenue、top_region_revenue、highest_refund_rate_region、highest_refund_rate_pct。计算规则：highest_refund_rate_pct = 该 region 的 refunds 总和 / revenue 总和 * 100，保留两位小数；金额和比例都返回数字，不要带逗号或百分号。",
+    "session_setup": {
+      "uploads": ["csv/regional_sales_clean.csv"],
+      "workspace_files": [],
+      "history_seed": []
+    }
+  },
+  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
+  "target_skills": ["csv-data-summarizer"],
+  "expected_signals": [
+    "skill:csv-data-summarizer",
+    "tool:Read:/workspace/uploads/",
+    "tool:Write:/workspace/temp/",
+    "tool:Bash"
+  ],
+  "forbidden_signals": [],
+  "expected_artifacts": [
+    "/workspace/temp/*.py"
+  ],
+  "pass_criteria": {
+    "final_response_non_empty": true,
+    "tool_errors_max": 0,
+    "iterations_max": 12
+  },
+  "scoring_weights": {
+    "task_success": 0.40,
+    "signal_match": 0.20,
+    "artifact_match": 0.10,
+    "tool_efficiency": 0.10,
+    "trajectory_quality": 0.20
+  },
+  "routing_expectation": {
+    "should_activate": ["csv-data-summarizer"]
+  },
+  "output_contract": {
+    "format": "json_only",
+    "required_fields": [
+      "row_count",
+      "total_revenue",
+      "top_region_by_revenue",
+      "top_region_revenue",
+      "highest_refund_rate_region",
+      "highest_refund_rate_pct"
+    ],
+    "notes": [
+      "不要输出 Markdown 代码块",
+      "所有金额和比例字段都返回数字",
+      "highest_refund_rate_pct 保留两位小数"
+    ]
+  },
+  "ground_truth": {
+    "row_count": 12,
+    "total_revenue": 242560,
+    "top_region_by_revenue": "East",
+    "top_region_revenue": 83400,
+    "highest_refund_rate_region": "West",
+    "highest_refund_rate_pct": 7.12
+  },
+  "verifier": {
+    "mode": "rubric",
+    "target": "final_response_json",
+    "checks": [
+      {
+        "id": "row_count",
+        "type": "exact_match",
+        "path": "row_count",
+        "expected": 12,
+        "weight": 0.15
+      },
+      {
+        "id": "total_revenue",
+        "type": "numeric_tolerance",
+        "path": "total_revenue",
+        "expected": 242560,
+        "tolerance": 0.01,
+        "weight": 0.2
+      },
+      {
+        "id": "top_region_by_revenue",
+        "type": "exact_match",
+        "path": "top_region_by_revenue",
+        "expected": "East",
+        "weight": 0.15
+      },
+      {
+        "id": "top_region_revenue",
+        "type": "numeric_tolerance",
+        "path": "top_region_revenue",
+        "expected": 83400,
+        "tolerance": 0.01,
+        "weight": 0.2
+      },
+      {
+        "id": "highest_refund_rate_region",
+        "type": "exact_match",
+        "path": "highest_refund_rate_region",
+        "expected": "West",
+        "weight": 0.1
+      },
+      {
+        "id": "highest_refund_rate_pct",
+        "type": "numeric_tolerance",
+        "path": "highest_refund_rate_pct",
+        "expected": 7.12,
+        "tolerance": 0.01,
+        "weight": 0.2
+      }
+    ]
+  },
+  "input_patterns": [
+    "分析我上传的 csv",
+    "分析这个 csv",
+    "分析一下 csv",
+    "分析csv"
+  ]
+}

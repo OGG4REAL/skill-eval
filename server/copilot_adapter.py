@@ -336,16 +336,40 @@ class CopilotBackend:
             shutil.rmtree(temp_dir, ignore_errors=True)
             print(f"[CopilotBackend] Cleaned temp files for {session_id}")
         
-    def _get_or_create_agent(self, session_id: str) -> Agent:
+    def _get_or_create_agent(
+        self,
+        session_id: str,
+        allowed_skills: set[str] | None = None,
+        variant_context: dict | None = None,
+    ) -> Agent:
         """
         获取或创建 Agent 实例
-        
+
+        当 allowed_skills 或 variant_context 非空时（benchmark 模式），
+        跳过缓存直接创建，避免不同 variant 之间串状态。
+
         Args:
             session_id: 会话 ID
-            
-        Returns:
-            Agent 实例
+            allowed_skills: 技能可见性过滤（benchmark variant 控制）
+            variant_context: 实验条件，写入 RunRecord
         """
+        is_benchmark = allowed_skills is not None or variant_context is not None
+
+        if is_benchmark:
+            agent, mcp_client = self._create_agent(
+                session_id,
+                allowed_skills=allowed_skills,
+                variant_context=variant_context,
+            )
+            with self._cache_lock:
+                self._agent_cache[session_id] = AgentCacheEntry(
+                    agent=agent,
+                    session_id=session_id,
+                    mcp_client=mcp_client,
+                )
+                self._stats["active_sessions"] = len(self._agent_cache)
+            return agent
+
         with self._cache_lock:
             if session_id in self._agent_cache:
                 entry = self._agent_cache[session_id]
@@ -377,12 +401,20 @@ class CopilotBackend:
         
         return agent
     
-    def _create_agent(self, session_id: str) -> Tuple[Agent, MCPClient]:
+    def _create_agent(
+        self,
+        session_id: str,
+        allowed_skills: set[str] | None = None,
+        variant_context: dict | None = None,
+    ) -> Tuple[Agent, MCPClient]:
         """
         创建新的 Agent 实例
         
         Args:
             session_id: 会话 ID
+            allowed_skills: 允许暴露的技能集合（用于 benchmark variant 控制）。
+                            None 表示不限制，保持默认行为。
+            variant_context: 实验条件，传给 Agent 以写入 RunRecord。
             
         Returns:
             (agent, mcp_client) 元组
@@ -391,7 +423,7 @@ class CopilotBackend:
         base_dir, uploads_dir, output_dir, log_file = ensure_session_dirs(session_id)
         
         # 初始化技能管理器
-        skill_manager = SkillManager(Config.SKILLS_DIR)
+        skill_manager = SkillManager(Config.SKILLS_DIR, allowed_skills=allowed_skills)
         
         # 初始化工具注册表
         tool_registry = ToolRegistry()
@@ -415,7 +447,8 @@ class CopilotBackend:
             skill_manager=skill_manager,
             tool_registry=tool_registry,
             log_file=str(log_file),
-            uploads_dir=str(uploads_dir)
+            uploads_dir=str(uploads_dir),
+            variant_context=variant_context,
         )
         
         return agent, mcp_client

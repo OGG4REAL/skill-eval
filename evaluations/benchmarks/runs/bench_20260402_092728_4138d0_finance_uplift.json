@@ -1,0 +1,373 @@
+{
+  "benchmark_id": "bench_20260402_092728_4138d0",
+  "started_at": "2026-04-02T09:27:28.970+00:00",
+  "finished_at": "2026-04-02T09:30:56.237+00:00",
+  "scope": {
+    "task_id": null,
+    "group": "finance_uplift",
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill"
+    ],
+    "trials": 1
+  },
+  "summary": {
+    "cases_total": 8,
+    "cases_succeeded": 8,
+    "cases_failed": 0
+  },
+  "cases": [
+    {
+      "task_id": "finance_cli_aip_basic",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-cli-aip-basic--no-skill--t1",
+      "run_id": "run_20260402_092731_a05272",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 11287,
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.9,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 0.5,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 缺失: skill:fin-advisor-math"
+        ]
+      }
+    },
+    {
+      "task_id": "finance_cli_aip_basic",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-cli-aip-basic--with-skill--t1",
+      "run_id": "run_20260402_092744_fade6a",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "fin-advisor-math"
+        ],
+        "pre_injected_skills": [
+          "fin-advisor-math"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 16186,
+      "tool_calls": 1,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 1.0,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    },
+    {
+      "task_id": "finance_cli_mdd_basic",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-cli-mdd-basic--no-skill--t1",
+      "run_id": "run_20260402_092801_7acf83",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 29466,
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.9,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 0.5,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 缺失: skill:fin-advisor-math"
+        ]
+      }
+    },
+    {
+      "task_id": "finance_cli_mdd_basic",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-cli-mdd-basic--with-skill--t1",
+      "run_id": "run_20260402_092831_04ce76",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "fin-advisor-math"
+        ],
+        "pre_injected_skills": [
+          "fin-advisor-math"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 9024,
+      "tool_calls": 1,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 1.0,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    },
+    {
+      "task_id": "finance_cli_years_to_target",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-cli-years-to-target--no-skill--t1",
+      "run_id": "run_20260402_092841_16dc50",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 61720,
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.9,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 0.5,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 缺失: skill:fin-advisor-math"
+        ]
+      }
+    },
+    {
+      "task_id": "finance_cli_years_to_target",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-cli-years-to-target--with-skill--t1",
+      "run_id": "run_20260402_092944_050726",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "fin-advisor-math"
+        ],
+        "pre_injected_skills": [
+          "fin-advisor-math"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 12685,
+      "tool_calls": 1,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 1.0,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    },
+    {
+      "task_id": "finance_tier2_multi_rate_compare",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-tier2-multi-rate-compare--no-skill--t1",
+      "run_id": "run_20260402_092958_f778c0",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 38329,
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.9,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 0.5,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 缺失: skill:fin-advisor-math, tool:Read:/workspace/skills/fin-advisor-math/scripts/finance_formulas.py"
+        ]
+      }
+    },
+    {
+      "task_id": "finance_tier2_multi_rate_compare",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260402-092728-4138d0--finance-tier2-multi-rate-compare--with-skill--t1",
+      "run_id": "run_20260402_093038_bb35ec",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "fin-advisor-math"
+        ],
+        "pre_injected_skills": [
+          "fin-advisor-math"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 17542,
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.8,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 0.5,
+          "artifact_match": 0.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 缺失: tool:Read:/workspace/skills/fin-advisor-math/scripts/finance_formulas.py, tool:Write:/workspace/temp/",
+          "artifact 缺失: /workspace/temp/*.py"
+        ]
+      }
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "finance_cli_aip_basic",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 0.9,
+        "avg_duration_ms": 11287.0,
+        "avg_tool_calls": 5.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_cli_aip_basic",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 16186.0,
+        "avg_tool_calls": 1.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_cli_mdd_basic",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 0.9,
+        "avg_duration_ms": 29466.0,
+        "avg_tool_calls": 2.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_cli_mdd_basic",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 9024.0,
+        "avg_tool_calls": 1.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_cli_years_to_target",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 0.9,
+        "avg_duration_ms": 61720.0,
+        "avg_tool_calls": 2.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_cli_years_to_target",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 12685.0,
+        "avg_tool_calls": 1.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_tier2_multi_rate_compare",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 0.9,
+        "avg_duration_ms": 38329.0,
+        "avg_tool_calls": 2.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "finance_tier2_multi_rate_compare",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 0.8,
+        "avg_duration_ms": 17542.0,
+        "avg_tool_calls": 4.0,
+        "avg_tool_errors": 0.0
+      }
+    ]
+  }
+}

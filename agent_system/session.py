@@ -6,7 +6,8 @@ from pathlib import Path
 from .config import Config
 
 
-def _sanitize_session_id(raw: str) -> str:
+def sanitize_session_id(raw: str) -> str:
+    """规范化 session_id：只保留字母数字，其余替换为连字符，去除首尾连字符"""
     sanitized = "".join(ch if ch.isalnum() else "-" for ch in raw).strip("-")
     return sanitized or "session"
 
@@ -14,14 +15,14 @@ def _sanitize_session_id(raw: str) -> str:
 def derive_session_id(log_file: str, explicit: str | None = None) -> str:
     """优先使用显式 session_id，否则根据日志文件名推导"""
     if explicit:
-        return _sanitize_session_id(explicit)
+        return sanitize_session_id(explicit)
     stem = Path(log_file).stem or "session"
-    return _sanitize_session_id(stem)
+    return sanitize_session_id(stem)
 
 
-def ensure_session_dirs(session_id: str):
+def ensure_session_dirs(session_id: str, sessions_root: Path | None = None):
     """确保会话相关目录存在，返回 (base, uploads, output, log_file)"""
-    base = Config.SESSIONS_ROOT / session_id
+    base = (sessions_root or Config.SESSIONS_ROOT) / session_id
     uploads = base / Config.SESSION_UPLOAD_DIR_NAME
     output = base / Config.SESSION_OUTPUT_DIR_NAME
     log_file = base / Config.SESSION_LOG_NAME

@@ -1,0 +1,113 @@
+{
+  "benchmark_id": "bench_20260401_101450_f52602",
+  "started_at": "2026-04-01T10:14:50.189+00:00",
+  "finished_at": "2026-04-01T10:16:20.304+00:00",
+  "scope": {
+    "task_id": "csv_analysis_clean_general",
+    "group": null,
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill"
+    ],
+    "trials": 1
+  },
+  "summary": {
+    "cases_total": 2,
+    "cases_succeeded": 1,
+    "cases_failed": 1
+  },
+  "cases": [
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260401-101450-f52602--csv-analysis-clean-general--no-skill--t1",
+      "run_id": "run_20260401_101452_031b7c",
+      "status": "failed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 44371,
+      "tool_calls": 10,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.36,
+        "scores": {
+          "task_success": 0.0,
+          "signal_match": 0.4,
+          "artifact_match": 0.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 0.9
+        },
+        "notes": [
+          "pass_criteria 失败: iterations_max — 允许 12，实际 13",
+          "signal 缺失: skill:csv-data-summarizer, tool:Read:/workspace/uploads/, tool:Write:/workspace/temp/",
+          "artifact 缺失: /workspace/temp/*.py"
+        ]
+      }
+    },
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260401-101450-f52602--csv-analysis-clean-general--with-skill--t1",
+      "run_id": "run_20260401_101537_447036",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "csv-data-summarizer"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": true
+      },
+      "duration_ms": 42379,
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "score": {
+        "weighted_score": 0.78,
+        "scores": {
+          "task_success": 1.0,
+          "signal_match": 0.4,
+          "artifact_match": 0.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 缺失: skill:csv-data-summarizer, tool:Read:/workspace/uploads/, tool:Write:/workspace/temp/",
+          "artifact 缺失: /workspace/temp/*.py"
+        ]
+      }
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 0.0,
+        "avg_weighted_score": 0.36,
+        "avg_duration_ms": 44371.0,
+        "avg_tool_calls": 10.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "avg_weighted_score": 0.78,
+        "avg_duration_ms": 42379.0,
+        "avg_tool_calls": 5.0,
+        "avg_tool_errors": 0.0
+      }
+    ]
+  }
+}

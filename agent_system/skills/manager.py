@@ -3,7 +3,7 @@
 重构后：只负责提供元数据，不再提供"加载完整技能"的功能
 """
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from .loader import SkillLoader
 
 
@@ -16,20 +16,22 @@ class SkillManager:
     2. 提取轻量级元数据（YAML frontmatter）
     3. 生成技能摘要（用于 system prompt）
     
-    不再职责：
-    - 直接由 Agent 通过 bash 读取技能文档（改为由 Skill 工具注入）
-    - 管理文件列表（Agent 通过 bash ls 自己查看）
-    - 缓存完整内容（不需要了）
+    allowed_skills 过滤：
+    - None（默认）：暴露全部扫描到的技能，即默认交互模式
+    - set[str]：仅暴露指定技能，用于 benchmark variant 控制
+    - 空集 set()：不暴露任何业务技能（no_skill baseline）
     """
     
-    def __init__(self, skills_dir: Path):
+    def __init__(self, skills_dir: Path, allowed_skills: Optional[Set[str]] = None):
         """
         初始化技能管理器
         
         Args:
             skills_dir: 技能目录路径
+            allowed_skills: 允许暴露的技能集合。None 表示不限制。
         """
         self.skills_dir = Path(skills_dir)
+        self._allowed_skills = allowed_skills
         self.skills: Dict[str, Dict] = {}  # skill_name -> {metadata, file_path, dir_path}
         self.scan_skills()
     
@@ -56,6 +58,13 @@ class SkillManager:
             
             except Exception as e:
                 print(f"[SkillManager] 加载技能失败 {skill_file}: {e}")
+        
+        if self._allowed_skills is not None:
+            filtered = {k: v for k, v in self.skills.items() if k in self._allowed_skills}
+            removed = set(self.skills.keys()) - set(filtered.keys())
+            if removed:
+                print(f"[SkillManager] variant 过滤: 移除 {', '.join(sorted(removed))}")
+            self.skills = filtered
     
     def get_skill_metadata(self, skill_name: str) -> Optional[Dict]:
         """

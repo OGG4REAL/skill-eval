@@ -72,7 +72,6 @@ The user will request you to perform various tasks. For these tasks the followin
 Working directory: /workspace/
 User files: /workspace/uploads/{detected_files}
 Output directory: /workspace/output/
-Skills directory: /workspace/skills/
 </env>
 
 Now, analyze the user's request and begin."""
