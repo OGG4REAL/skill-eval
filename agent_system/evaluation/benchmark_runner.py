@@ -227,7 +227,8 @@ class BenchmarkRunner:
                 sessions_root=self._sessions_root,
                 skills_dir=case_skills_dir,
             )
-            result = agent.run(task["input"]["user_query"])
+            eval_query = self._build_eval_query(task)
+            result = agent.run(eval_query)
             response_text = result.get("response", "")
             run_id = result.get("run_id")
             case["run_id"] = run_id
@@ -287,6 +288,28 @@ class BenchmarkRunner:
     ) -> str:
         raw = f"{benchmark_id}__{task_id}__{variant_id}__t{trial_index}"
         return sanitize_session_id(raw)
+
+    @staticmethod
+    def _build_eval_query(task: dict) -> str:
+        """拼接 eval 专用 query：自然 user_query + output_contract 约束。
+
+        output_contract 仅在 benchmark 执行路径注入，日常 agent 不受影响。
+        """
+        query = task["input"]["user_query"]
+        contract = task.get("output_contract")
+        if not contract:
+            return query
+
+        required = contract.get("required_fields")
+        if not required:
+            return query
+
+        fields = "、".join(required)
+        notes = contract.get("notes", [])
+        suffix = f"\n\n【输出要求】请将最终结果以 JSON 格式输出，必须包含以下字段：{fields}。"
+        if notes:
+            suffix += "".join(f"\n- {n}" for n in notes)
+        return query + suffix
 
     def _prepare_upload_fixtures(self, task: dict, session_id: str) -> list[str]:
         """复制 uploads fixture 到 session uploads/ 目录"""

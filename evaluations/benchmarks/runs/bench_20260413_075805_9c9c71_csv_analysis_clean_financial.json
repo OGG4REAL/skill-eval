@@ -1,0 +1,595 @@
+{
+  "benchmark_id": "bench_20260413_075805_9c9c71",
+  "started_at": "2026-04-13T07:58:05.361+00:00",
+  "finished_at": "2026-04-13T08:02:14.087+00:00",
+  "scope": {
+    "task_id": "csv_analysis_clean_financial",
+    "group": null,
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill"
+    ],
+    "trials": 2
+  },
+  "summary": {
+    "cases_total": 4,
+    "cases_succeeded": 4,
+    "cases_failed": 0
+  },
+  "cases": [
+    {
+      "task_id": "csv_analysis_clean_financial",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--no-skill--t1",
+      "run_id": "run_20260413_075806_af5317",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 38871,
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "script_stdout",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "row_count",
+              "type": "exact_match",
+              "path": "row_count",
+              "expected": 45,
+              "actual": 45,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.row_count",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "total_revenue",
+              "type": "numeric_tolerance",
+              "path": "total_revenue",
+              "expected": 20651000,
+              "actual": 20651000,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.total_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "weighted_gross_margin_pct",
+              "type": "numeric_tolerance",
+              "path": "weighted_gross_margin_pct",
+              "expected": 65.22,
+              "actual": 65.22,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.weighted_gross_margin_pct",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "top_product_line_by_total_revenue",
+              "type": "exact_match",
+              "path": "top_product_line_by_total_revenue",
+              "expected": "SaaS Platform",
+              "actual": "SaaS Platform",
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_by_total_revenue",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "top_product_line_revenue",
+              "type": "numeric_tolerance",
+              "path": "top_product_line_revenue",
+              "expected": 10775000,
+              "actual": 10775000,
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "best_quarter_by_net_income",
+              "type": "exact_match",
+              "path": "best_quarter_by_net_income",
+              "expected": "Q1 2024",
+              "actual": "Q1 2024",
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_by_net_income",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "best_quarter_net_income",
+              "type": "numeric_tolerance",
+              "path": "best_quarter_net_income",
+              "expected": 795160,
+              "actual": 795160,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_net_income",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            }
+          ],
+          "summary": {
+            "total_checks": 7,
+            "passed_checks": 7,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "script_stdout_merge",
+            "bash_candidates": 2,
+            "merged_from_indices": [
+              0,
+              1
+            ]
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 豁免(no_skill): skill:csv-data-summarizer"
+        ]
+      }
+    },
+    {
+      "task_id": "csv_analysis_clean_financial",
+      "variant_id": "no_skill",
+      "trial_index": 2,
+      "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--no-skill--t2",
+      "run_id": "run_20260413_075845_ff57cf",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 42627,
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "script_stdout",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "row_count",
+              "type": "exact_match",
+              "path": "row_count",
+              "expected": 45,
+              "actual": 45,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.row_count",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "total_revenue",
+              "type": "numeric_tolerance",
+              "path": "total_revenue",
+              "expected": 20651000,
+              "actual": 20651000,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.total_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "weighted_gross_margin_pct",
+              "type": "numeric_tolerance",
+              "path": "weighted_gross_margin_pct",
+              "expected": 65.22,
+              "actual": 65.22,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.weighted_gross_margin_pct",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "top_product_line_by_total_revenue",
+              "type": "exact_match",
+              "path": "top_product_line_by_total_revenue",
+              "expected": "SaaS Platform",
+              "actual": "SaaS Platform",
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_by_total_revenue",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "top_product_line_revenue",
+              "type": "numeric_tolerance",
+              "path": "top_product_line_revenue",
+              "expected": 10775000,
+              "actual": 10775000,
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "best_quarter_by_net_income",
+              "type": "exact_match",
+              "path": "best_quarter_by_net_income",
+              "expected": "Q1 2024",
+              "actual": "Q1 2024",
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_by_net_income",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "best_quarter_net_income",
+              "type": "numeric_tolerance",
+              "path": "best_quarter_net_income",
+              "expected": 795160,
+              "actual": 795160,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_net_income",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            }
+          ],
+          "summary": {
+            "total_checks": 7,
+            "passed_checks": 7,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "script_stdout_merge",
+            "bash_candidates": 2,
+            "merged_from_indices": [
+              0,
+              1
+            ]
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 豁免(no_skill): skill:csv-data-summarizer"
+        ]
+      }
+    },
+    {
+      "task_id": "csv_analysis_clean_financial",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--with-skill--t1",
+      "run_id": "run_20260413_075929_2adb8d",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "csv-data-summarizer"
+        ],
+        "pre_injected_skills": [
+          "csv-data-summarizer"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 110121,
+      "tool_calls": 8,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "script_stdout",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "row_count",
+              "type": "exact_match",
+              "path": "row_count",
+              "expected": 45,
+              "actual": 45,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.row_count",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "total_revenue",
+              "type": "numeric_tolerance",
+              "path": "total_revenue",
+              "expected": 20651000,
+              "actual": 20651000.0,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.total_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "weighted_gross_margin_pct",
+              "type": "numeric_tolerance",
+              "path": "weighted_gross_margin_pct",
+              "expected": 65.22,
+              "actual": 65.22,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.weighted_gross_margin_pct",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "top_product_line_by_total_revenue",
+              "type": "exact_match",
+              "path": "top_product_line_by_total_revenue",
+              "expected": "SaaS Platform",
+              "actual": "SaaS Platform",
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_by_total_revenue",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "top_product_line_revenue",
+              "type": "numeric_tolerance",
+              "path": "top_product_line_revenue",
+              "expected": 10775000,
+              "actual": 10775000.0,
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "best_quarter_by_net_income",
+              "type": "exact_match",
+              "path": "best_quarter_by_net_income",
+              "expected": "Q1 2024",
+              "actual": "Q1 2024",
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_by_net_income",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "best_quarter_net_income",
+              "type": "numeric_tolerance",
+              "path": "best_quarter_net_income",
+              "expected": 795160,
+              "actual": 795160.0,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_net_income",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            }
+          ],
+          "summary": {
+            "total_checks": 7,
+            "passed_checks": 7,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "script_stdout_merge",
+            "bash_candidates": 3,
+            "merged_from_indices": [
+              0,
+              1,
+              2
+            ]
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    },
+    {
+      "task_id": "csv_analysis_clean_financial",
+      "variant_id": "with_skill",
+      "trial_index": 2,
+      "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--with-skill--t2",
+      "run_id": "run_20260413_080119_db436e",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "csv-data-summarizer"
+        ],
+        "pre_injected_skills": [
+          "csv-data-summarizer"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 53777,
+      "tool_calls": 6,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "script_stdout",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "row_count",
+              "type": "exact_match",
+              "path": "row_count",
+              "expected": 45,
+              "actual": 45,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.row_count",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "total_revenue",
+              "type": "numeric_tolerance",
+              "path": "total_revenue",
+              "expected": 20651000,
+              "actual": 20651000.0,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.total_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "weighted_gross_margin_pct",
+              "type": "numeric_tolerance",
+              "path": "weighted_gross_margin_pct",
+              "expected": 65.22,
+              "actual": 65.22,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.weighted_gross_margin_pct",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "top_product_line_by_total_revenue",
+              "type": "exact_match",
+              "path": "top_product_line_by_total_revenue",
+              "expected": "SaaS Platform",
+              "actual": "SaaS Platform",
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_by_total_revenue",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "top_product_line_revenue",
+              "type": "numeric_tolerance",
+              "path": "top_product_line_revenue",
+              "expected": 10775000,
+              "actual": 10775000.0,
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_product_line_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "best_quarter_by_net_income",
+              "type": "exact_match",
+              "path": "best_quarter_by_net_income",
+              "expected": "Q1 2024",
+              "actual": "Q1 2024",
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_by_net_income",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "best_quarter_net_income",
+              "type": "numeric_tolerance",
+              "path": "best_quarter_net_income",
+              "expected": 795160,
+              "actual": 795160.0,
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.best_quarter_net_income",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            }
+          ],
+          "summary": {
+            "total_checks": 7,
+            "passed_checks": 7,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "script_stdout_merge",
+            "bash_candidates": 2,
+            "merged_from_indices": [
+              0,
+              1
+            ]
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "csv_analysis_clean_financial",
+        "variant_id": "no_skill",
+        "trials": 2,
+        "pass_rate": 1.0,
+        "result_pass_rate": 1.0,
+        "avg_result_score": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 40749.0,
+        "avg_tool_calls": 5.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "csv_analysis_clean_financial",
+        "variant_id": "with_skill",
+        "trials": 2,
+        "pass_rate": 1.0,
+        "result_pass_rate": 1.0,
+        "avg_result_score": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 81949.0,
+        "avg_tool_calls": 7.0,
+        "avg_tool_errors": 0.0
+      }
+    ]
+  }
+}

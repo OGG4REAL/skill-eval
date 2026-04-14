@@ -265,6 +265,15 @@ class TaskLoader:
                     f"[{source}] verifier.checks[{idx}] 不能同时声明 expected 和 expected_from"
                 )
 
+            _VALID_TOLERANCE_MODES = {"absolute", "relative"}
+            if "tolerance_mode" in check:
+                tm = check["tolerance_mode"]
+                if not isinstance(tm, str) or tm not in _VALID_TOLERANCE_MODES:
+                    raise TaskLoadError(
+                        f"[{source}] verifier.checks[{idx}].tolerance_mode "
+                        f"必须是 {_VALID_TOLERANCE_MODES} 之一，实际为 {tm!r}"
+                    )
+
             if ground_truth is None:
                 continue
 

@@ -414,6 +414,54 @@ class TestSemanticValidation:
         with pytest.raises(TaskLoadError, match="不存在"):
             loader.get_task("no_such_task")
 
+    def test_valid_tolerance_mode(self, tmp_path: Path):
+        task = _make_task(
+            ground_truth={"val": 100},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [
+                    {"id": "v", "type": "numeric_tolerance", "path": "val",
+                     "tolerance": 0.001, "tolerance_mode": "relative", "weight": 1.0}
+                ],
+            },
+        )
+        _write_task(tmp_path, task)
+        loader = TaskLoader(tmp_path)
+        assert len(loader.list_tasks()) == 1
+
+    def test_invalid_tolerance_mode_value(self, tmp_path: Path):
+        task = _make_task(
+            ground_truth={"val": 100},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [
+                    {"id": "v", "type": "numeric_tolerance", "path": "val",
+                     "tolerance": 0.001, "tolerance_mode": "percent", "weight": 1.0}
+                ],
+            },
+        )
+        _write_task(tmp_path, task)
+        with pytest.raises(TaskLoadError, match="tolerance_mode"):
+            TaskLoader(tmp_path)
+
+    def test_invalid_tolerance_mode_type(self, tmp_path: Path):
+        task = _make_task(
+            ground_truth={"val": 100},
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [
+                    {"id": "v", "type": "numeric_tolerance", "path": "val",
+                     "tolerance": 0.001, "tolerance_mode": 123, "weight": 1.0}
+                ],
+            },
+        )
+        _write_task(tmp_path, task)
+        with pytest.raises(TaskLoadError, match="tolerance_mode"):
+            TaskLoader(tmp_path)
+
 
 # ── 边界与异常 ────────────────────────────────────────────
 

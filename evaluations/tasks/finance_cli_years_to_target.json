@@ -4,15 +4,20 @@
   "eval_type": "uplift",
   "description": "验证年限反推场景下，agent 是否能返回可直接校验的结构化 JSON 结果。",
   "input": {
-    "user_query": "如果本金是 30 万，按年化 8% 复利增长，大约多久能到 100 万？请只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：years_needed、initial_investment、target、growth_multiple、rate_percent。",
+    "user_query": "本金 30 万，年化 8% 复利，大约多久能到 100 万？",
     "session_setup": {
       "uploads": [],
       "workspace_files": [],
       "history_seed": []
     }
   },
-  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
-  "target_skills": ["fin-advisor-math"],
+  "variants": [
+    "no_skill",
+    "with_skill"
+  ],
+  "target_skills": [
+    "fin-advisor-math"
+  ],
   "expected_signals": [
     "skill:fin-advisor-math",
     "tool:Bash"
@@ -25,17 +30,18 @@
     "iterations_max": 8
   },
   "scoring_weights": {
-    "task_success": 0.40,
-    "signal_match": 0.20,
-    "artifact_match": 0.10,
-    "tool_efficiency": 0.10,
-    "trajectory_quality": 0.20
+    "result_score": 0.6,
+    "task_success": 0.2,
+    "signal_match": 0.1,
+    "tool_efficiency": 0.1
   },
   "routing_expectation": {
-    "should_activate": ["fin-advisor-math"]
+    "should_activate": [
+      "fin-advisor-math"
+    ]
   },
   "output_contract": {
-    "format": "json_only",
+    "format": "json",
     "required_fields": [
       "years_needed",
       "initial_investment",
@@ -44,7 +50,6 @@
       "rate_percent"
     ],
     "notes": [
-      "不要输出 Markdown 代码块",
       "years_needed 返回数字",
       "growth_multiple 和 rate_percent 返回字符串"
     ]
@@ -64,21 +69,24 @@
         "id": "years_needed",
         "type": "numeric_tolerance",
         "path": "years_needed",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.4
       },
       {
         "id": "initial_investment",
         "type": "numeric_tolerance",
         "path": "initial_investment",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.1
       },
       {
         "id": "target",
         "type": "numeric_tolerance",
         "path": "target",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.1
       },
       {

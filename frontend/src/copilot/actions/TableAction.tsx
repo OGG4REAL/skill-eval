@@ -32,6 +32,23 @@ function formatCellValue(value: unknown, type?: TableColumn['type']): string {
 
 export function TableAction({ args }: TableActionProps) {
   const { title, columns, rows, options } = args;
+
+  if (!columns || !rows) {
+    return (
+      <div style={{
+        background: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: '16px',
+        padding: '16px',
+        margin: '8px 0',
+        border: '1px solid rgba(255, 80, 80, 0.2)',
+        color: 'rgba(255, 120, 120, 0.8)',
+        fontSize: '13px',
+      }}>
+        表格数据格式异常（模型返回了不标准的参数结构）
+      </div>
+    );
+  }
+
   const pageSize = options?.page_size || 10;
   const showPagination = options?.show_pagination !== false;
   

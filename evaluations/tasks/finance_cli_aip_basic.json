@@ -4,15 +4,20 @@
   "eval_type": "uplift",
   "description": "验证典型定投测算场景下，agent 是否能返回可直接校验的结构化 JSON 结果。",
   "input": {
-    "user_query": "每月定投 3000 元，按年化 8%，连续 10 年，最终大概能有多少钱？请只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：final_value、total_invested、profit、return_rate。",
+    "user_query": "每月定投 3000 元，年化 8%，投 10 年，最终能有多少钱？",
     "session_setup": {
       "uploads": [],
       "workspace_files": [],
       "history_seed": []
     }
   },
-  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
-  "target_skills": ["fin-advisor-math"],
+  "variants": [
+    "no_skill",
+    "with_skill"
+  ],
+  "target_skills": [
+    "fin-advisor-math"
+  ],
   "expected_signals": [
     "skill:fin-advisor-math",
     "tool:Bash"
@@ -25,17 +30,18 @@
     "iterations_max": 8
   },
   "scoring_weights": {
-    "task_success": 0.40,
-    "signal_match": 0.20,
-    "artifact_match": 0.10,
-    "tool_efficiency": 0.10,
-    "trajectory_quality": 0.20
+    "result_score": 0.6,
+    "task_success": 0.2,
+    "signal_match": 0.1,
+    "tool_efficiency": 0.1
   },
   "routing_expectation": {
-    "should_activate": ["fin-advisor-math"]
+    "should_activate": [
+      "fin-advisor-math"
+    ]
   },
   "output_contract": {
-    "format": "json_only",
+    "format": "json",
     "required_fields": [
       "final_value",
       "total_invested",
@@ -43,7 +49,6 @@
       "return_rate"
     ],
     "notes": [
-      "不要输出 Markdown 代码块",
       "final_value、total_invested、profit 返回数字",
       "return_rate 返回带百分号的字符串"
     ]
@@ -62,21 +67,24 @@
         "id": "final_value",
         "type": "numeric_tolerance",
         "path": "final_value",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.35
       },
       {
         "id": "total_invested",
         "type": "numeric_tolerance",
         "path": "total_invested",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       },
       {
         "id": "profit",
         "type": "numeric_tolerance",
         "path": "profit",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.25
       },
       {

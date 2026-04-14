@@ -2,17 +2,24 @@
   "task_id": "csv_analysis_large_csv",
   "group": "csv_uplift",
   "eval_type": "uplift",
-  "description": "验证 skill 在大文件场景下，是否仍能稳定完成脚本化聚合并返回可直接对分的 JSON 结果。",
+  "description": "验证 skill 在大文件场景下，是否仍能稳定完成脚本化聚合并输出可校验的 JSON 结果。",
   "input": {
-    "user_query": "请分析我上传的大型财务 CSV，并且只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：row_count、revenue_by_year、weighted_net_margin_pct、top_product_line_by_total_revenue、top_product_line_revenue。请基于整份数据给出分年份收入汇总、公司整体净利率，以及收入最高的产品线。revenue_by_year 必须是对象，键固定为字符串 \"2023\" 和 \"2024\"；金额和比例都返回数字，不要带逗号或百分号。",
+    "user_query": "这是一份比较大的财务数据，帮我做个整体分析：按年汇总收入、算算净利率、看看哪条产品线收入最高。",
     "session_setup": {
-      "uploads": ["csv/financial_large.csv"],
+      "uploads": [
+        "csv/financial_large.csv"
+      ],
       "workspace_files": [],
       "history_seed": []
     }
   },
-  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
-  "target_skills": ["csv-data-summarizer"],
+  "variants": [
+    "no_skill",
+    "with_skill"
+  ],
+  "target_skills": [
+    "csv-data-summarizer"
+  ],
   "expected_signals": [
     "skill:csv-data-summarizer",
     "tool:Read:/workspace/uploads/",
@@ -29,17 +36,18 @@
     "iterations_max": 14
   },
   "scoring_weights": {
-    "task_success": 0.40,
-    "signal_match": 0.20,
-    "artifact_match": 0.10,
-    "tool_efficiency": 0.10,
-    "trajectory_quality": 0.20
+    "result_score": 0.6,
+    "task_success": 0.2,
+    "signal_match": 0.1,
+    "tool_efficiency": 0.1
   },
   "routing_expectation": {
-    "should_activate": ["csv-data-summarizer"]
+    "should_activate": [
+      "csv-data-summarizer"
+    ]
   },
   "output_contract": {
-    "format": "json_only",
+    "format": "json",
     "required_fields": [
       "row_count",
       "revenue_by_year",
@@ -48,7 +56,6 @@
       "top_product_line_revenue"
     ],
     "notes": [
-      "不要输出 Markdown 代码块",
       "revenue_by_year 的键固定为字符串 2023 和 2024",
       "weighted_net_margin_pct 保留两位小数"
     ]
@@ -65,7 +72,7 @@
   },
   "verifier": {
     "mode": "rubric",
-    "target": "final_response_json",
+    "target": "script_stdout",
     "checks": [
       {
         "id": "row_count",
@@ -77,21 +84,24 @@
         "id": "revenue_2023",
         "type": "numeric_tolerance",
         "path": "revenue_by_year.2023",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       },
       {
         "id": "revenue_2024",
         "type": "numeric_tolerance",
         "path": "revenue_by_year.2024",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       },
       {
         "id": "weighted_net_margin_pct",
         "type": "numeric_tolerance",
         "path": "weighted_net_margin_pct",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.15
       },
       {
@@ -104,7 +114,8 @@
         "id": "top_product_line_revenue",
         "type": "numeric_tolerance",
         "path": "top_product_line_revenue",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       }
     ]

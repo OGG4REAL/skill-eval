@@ -918,5 +918,369 @@
     "duration_ms": 9697,
     "tool_calls": 1,
     "created_at": "2026-04-08T09:52:54.712+00:00"
+  },
+  {
+    "run_id": "run_20260413_060940_07f650",
+    "session_id": "bench-20260413-060939-7905cc--csv-analysis-clean-general--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 34069,
+    "tool_calls": 3,
+    "created_at": "2026-04-13T06:10:14.398+00:00"
+  },
+  {
+    "run_id": "run_20260413_061015_eb7eb2",
+    "session_id": "bench-20260413-060939-7905cc--csv-analysis-clean-general--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 43594,
+    "tool_calls": 6,
+    "created_at": "2026-04-13T06:10:58.705+00:00"
+  },
+  {
+    "run_id": "run_20260413_075418_6befc5",
+    "session_id": "bench-20260413-075417-bc8e21--csv-analysis-clean-general--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 64670,
+    "tool_calls": 6,
+    "created_at": "2026-04-13T07:55:23.651+00:00"
+  },
+  {
+    "run_id": "run_20260413_075524_342690",
+    "session_id": "bench-20260413-075417-bc8e21--csv-analysis-clean-general--no-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 27518,
+    "tool_calls": 3,
+    "created_at": "2026-04-13T07:55:51.786+00:00"
+  },
+  {
+    "run_id": "run_20260413_075552_7b0fc8",
+    "session_id": "bench-20260413-075417-bc8e21--csv-analysis-clean-general--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 54729,
+    "tool_calls": 4,
+    "created_at": "2026-04-13T07:56:47.080+00:00"
+  },
+  {
+    "run_id": "run_20260413_075647_58d6bc",
+    "session_id": "bench-20260413-075417-bc8e21--csv-analysis-clean-general--with-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 60851,
+    "tool_calls": 4,
+    "created_at": "2026-04-13T07:57:48.472+00:00"
+  },
+  {
+    "run_id": "run_20260413_075806_af5317",
+    "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 38871,
+    "tool_calls": 5,
+    "created_at": "2026-04-13T07:58:45.370+00:00"
+  },
+  {
+    "run_id": "run_20260413_075845_ff57cf",
+    "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--no-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 42627,
+    "tool_calls": 5,
+    "created_at": "2026-04-13T07:59:28.582+00:00"
+  },
+  {
+    "run_id": "run_20260413_075929_2adb8d",
+    "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 110121,
+    "tool_calls": 8,
+    "created_at": "2026-04-13T08:01:19.241+00:00"
+  },
+  {
+    "run_id": "run_20260413_080119_db436e",
+    "session_id": "bench-20260413-075805-9c9c71--csv-analysis-clean-financial--with-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 53777,
+    "tool_calls": 6,
+    "created_at": "2026-04-13T08:02:13.600+00:00"
+  },
+  {
+    "run_id": "run_20260413_080234_aaf5f5",
+    "session_id": "bench-20260413-080233-40a235--csv-analysis-dirty-headers--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 34320,
+    "tool_calls": 3,
+    "created_at": "2026-04-13T08:03:09.170+00:00"
+  },
+  {
+    "run_id": "run_20260413_080309_ca3719",
+    "session_id": "bench-20260413-080233-40a235--csv-analysis-dirty-headers--no-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 55928,
+    "tool_calls": 5,
+    "created_at": "2026-04-13T08:04:05.695+00:00"
+  },
+  {
+    "run_id": "run_20260413_080406_af9ed9",
+    "session_id": "bench-20260413-080233-40a235--csv-analysis-dirty-headers--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 0.97,
+    "duration_ms": 121302,
+    "tool_calls": 8,
+    "created_at": "2026-04-13T08:06:07.976+00:00"
+  },
+  {
+    "run_id": "run_20260413_080609_f0344a",
+    "session_id": "bench-20260413-080233-40a235--csv-analysis-dirty-headers--with-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 114568,
+    "tool_calls": 7,
+    "created_at": "2026-04-13T08:08:03.648+00:00"
+  },
+  {
+    "run_id": "run_20260413_081313_db324a",
+    "session_id": "bench-20260413-081311-ce45da--csv-analysis-large-csv--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 57267,
+    "tool_calls": 3,
+    "created_at": "2026-04-13T08:14:10.822+00:00"
+  },
+  {
+    "run_id": "run_20260413_081411_6dfccd",
+    "session_id": "bench-20260413-081311-ce45da--csv-analysis-large-csv--no-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 0.97,
+    "duration_ms": 122114,
+    "tool_calls": 12,
+    "created_at": "2026-04-13T08:16:13.832+00:00"
+  },
+  {
+    "run_id": "run_20260413_081614_56efc9",
+    "session_id": "bench-20260413-081311-ce45da--csv-analysis-large-csv--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 63587,
+    "tool_calls": 6,
+    "created_at": "2026-04-13T08:17:18.383+00:00"
+  },
+  {
+    "run_id": "run_20260413_081719_52acc1",
+    "session_id": "bench-20260413-081311-ce45da--csv-analysis-large-csv--with-skill--t2",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 71595,
+    "tool_calls": 4,
+    "created_at": "2026-04-13T08:18:31.127+00:00"
+  },
+  {
+    "run_id": "run_20260413_092308_a53cd3",
+    "session_id": "bench-20260413-092305-e4286b--csv-analysis-dirty-headers--no-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "no_skill",
+    "skills": [],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 103454,
+    "tool_calls": 3,
+    "created_at": "2026-04-13T09:24:51.548+00:00"
+  },
+  {
+    "run_id": "run_20260413_092452_1ea000",
+    "session_id": "bench-20260413-092305-e4286b--csv-analysis-dirty-headers--with-skill--t1",
+    "task_id": "adhoc",
+    "variant_id": "with_skill",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 305277,
+    "tool_calls": 8,
+    "created_at": "2026-04-13T09:29:57.842+00:00"
+  },
+  {
+    "run_id": "run_20260414_024341_149b40",
+    "session_id": "c67de7be5efa45c780aa96a58ee0b460",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 80241,
+    "tool_calls": 4,
+    "created_at": "2026-04-14T02:45:01.535+00:00"
+  },
+  {
+    "run_id": "run_20260414_031128_944681",
+    "session_id": "6bd01dc7fcce4470bbfa9b189c31e50a",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 1.0,
+    "duration_ms": 46107,
+    "tool_calls": 4,
+    "created_at": "2026-04-14T03:12:14.344+00:00"
+  },
+  {
+    "run_id": "run_20260414_032513_80a28e",
+    "session_id": "5786550d90cc402cb8d6dede2ebd26f8",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 0.95,
+    "duration_ms": 134206,
+    "tool_calls": 19,
+    "created_at": "2026-04-14T03:27:27.594+00:00"
+  },
+  {
+    "run_id": "run_20260414_034918_d05870",
+    "session_id": "d913adb2d54d4a19809d6576c4db5961",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [
+      "csv-data-summarizer"
+    ],
+    "status": "passed",
+    "score": 0.95,
+    "duration_ms": 105935,
+    "tool_calls": 12,
+    "created_at": "2026-04-14T03:51:04.747+00:00"
+  },
+  {
+    "run_id": "run_20260414_053632_44e711",
+    "session_id": "d913adb2d54d4a19809d6576c4db5961",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [],
+    "status": "passed",
+    "score": 0.97,
+    "duration_ms": 71689,
+    "tool_calls": 7,
+    "created_at": "2026-04-14T05:37:43.750+00:00"
+  },
+  {
+    "run_id": "run_20260414_053938_09ae8a",
+    "session_id": "d913adb2d54d4a19809d6576c4db5961",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [],
+    "status": "failed",
+    "score": 0.57,
+    "duration_ms": 333,
+    "tool_calls": 0,
+    "created_at": "2026-04-14T05:39:39.142+00:00"
+  },
+  {
+    "run_id": "run_20260414_085549_648382",
+    "session_id": "d913adb2d54d4a19809d6576c4db5961",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [],
+    "status": "passed",
+    "score": 0.95,
+    "duration_ms": 101368,
+    "tool_calls": 12,
+    "created_at": "2026-04-14T08:57:30.883+00:00"
+  },
+  {
+    "run_id": "run_20260414_090547_e3c906",
+    "session_id": "d913adb2d54d4a19809d6576c4db5961",
+    "task_id": "adhoc",
+    "variant_id": "baseline",
+    "skills": [],
+    "status": "passed",
+    "score": 0.95,
+    "duration_ms": 139155,
+    "tool_calls": 17,
+    "created_at": "2026-04-14T09:08:06.950+00:00"
   }
 ]

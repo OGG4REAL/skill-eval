@@ -1,0 +1,154 @@
+{
+  "benchmark_id": "bench_20260413_060838_0b0c54",
+  "started_at": "2026-04-13T06:08:38.765+00:00",
+  "finished_at": "2026-04-13T06:08:39.582+00:00",
+  "scope": {
+    "task_id": "csv_analysis_clean_general",
+    "group": null,
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill",
+      "skill_v1",
+      "skill_v2"
+    ],
+    "trials": 1
+  },
+  "summary": {
+    "cases_total": 4,
+    "cases_succeeded": 0,
+    "cases_failed": 4
+  },
+  "cases": [
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260413-060838-0b0c54--csv-analysis-clean-general--no-skill--t1",
+      "run_id": null,
+      "status": "failed",
+      "run_status": null,
+      "error": "agent 执行失败: 'gbk' codec can't encode character '\\u2713' in position 0: illegal multibyte sequence\n*** You may need to add PYTHONIOENCODING=utf-8 to your environment ***",
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": null,
+      "tool_calls": null,
+      "tool_errors": null,
+      "final_response_present": null,
+      "score": null
+    },
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260413-060838-0b0c54--csv-analysis-clean-general--with-skill--t1",
+      "run_id": null,
+      "status": "failed",
+      "run_status": null,
+      "error": "agent 执行失败: 'gbk' codec can't encode character '\\u2713' in position 0: illegal multibyte sequence\n*** You may need to add PYTHONIOENCODING=utf-8 to your environment ***",
+      "variant": {
+        "enabled_skills": [
+          "csv-data-summarizer"
+        ],
+        "pre_injected_skills": [
+          "csv-data-summarizer"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": null,
+      "tool_calls": null,
+      "tool_errors": null,
+      "final_response_present": null,
+      "score": null
+    },
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "skill_v1",
+      "trial_index": 1,
+      "session_id": "bench-20260413-060838-0b0c54--csv-analysis-clean-general--skill-v1--t1",
+      "run_id": null,
+      "status": "failed",
+      "run_status": null,
+      "error": "variant resolve 失败: variant 'skill_v1' 要求版本 'v1'，但系统当前没有可解析的 skill 版本源。需要的版本映射: {'csv-data-summarizer': 'v1'}。请先实现 skill 版本管理后再使用此 variant。",
+      "variant": null,
+      "duration_ms": null,
+      "tool_calls": null,
+      "tool_errors": null,
+      "final_response_present": null,
+      "score": null
+    },
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "skill_v2",
+      "trial_index": 1,
+      "session_id": "bench-20260413-060838-0b0c54--csv-analysis-clean-general--skill-v2--t1",
+      "run_id": null,
+      "status": "failed",
+      "run_status": null,
+      "error": "variant resolve 失败: variant 'skill_v2' 要求版本 'v2'，但系统当前没有可解析的 skill 版本源。需要的版本映射: {'csv-data-summarizer': 'v2'}。请先实现 skill 版本管理后再使用此 variant。",
+      "variant": null,
+      "duration_ms": null,
+      "tool_calls": null,
+      "tool_errors": null,
+      "final_response_present": null,
+      "score": null
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 0.0,
+        "result_pass_rate": null,
+        "avg_result_score": null,
+        "avg_weighted_score": null,
+        "avg_duration_ms": null,
+        "avg_tool_calls": null,
+        "avg_tool_errors": null
+      },
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "skill_v1",
+        "trials": 1,
+        "pass_rate": 0.0,
+        "result_pass_rate": null,
+        "avg_result_score": null,
+        "avg_weighted_score": null,
+        "avg_duration_ms": null,
+        "avg_tool_calls": null,
+        "avg_tool_errors": null
+      },
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "skill_v2",
+        "trials": 1,
+        "pass_rate": 0.0,
+        "result_pass_rate": null,
+        "avg_result_score": null,
+        "avg_weighted_score": null,
+        "avg_duration_ms": null,
+        "avg_tool_calls": null,
+        "avg_tool_errors": null
+      },
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 0.0,
+        "result_pass_rate": null,
+        "avg_result_score": null,
+        "avg_weighted_score": null,
+        "avg_duration_ms": null,
+        "avg_tool_calls": null,
+        "avg_tool_errors": null
+      }
+    ]
+  }
+}

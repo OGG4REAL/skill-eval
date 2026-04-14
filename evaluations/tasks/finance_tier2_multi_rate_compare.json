@@ -4,15 +4,20 @@
   "eval_type": "uplift",
   "description": "验证多收益率对比场景下，agent 是否能返回可直接校验的结构化 JSON 结果。",
   "input": {
-    "user_query": "如果本金是 30 万，目标是 100 万，请比较年化 6%、8%、10%、12% 四种收益率下分别需要多少年。请只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：years_by_rate、fastest_rate、fastest_years、slowest_rate、slowest_years。years_by_rate 必须是一个对象，键固定为 \"6%\"、\"8%\"、\"10%\"、\"12%\"。",
+    "user_query": "本金 30 万目标 100 万，比较年化 6%、8%、10%、12% 分别需要多少年。",
     "session_setup": {
       "uploads": [],
       "workspace_files": [],
       "history_seed": []
     }
   },
-  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
-  "target_skills": ["fin-advisor-math"],
+  "variants": [
+    "no_skill",
+    "with_skill"
+  ],
+  "target_skills": [
+    "fin-advisor-math"
+  ],
   "expected_signals": [
     "skill:fin-advisor-math",
     "tool:Read:/workspace/skills/fin-advisor-math/scripts/finance_formulas.py",
@@ -29,17 +34,18 @@
     "iterations_max": 12
   },
   "scoring_weights": {
-    "task_success": 0.40,
-    "signal_match": 0.20,
-    "artifact_match": 0.10,
-    "tool_efficiency": 0.10,
-    "trajectory_quality": 0.20
+    "result_score": 0.6,
+    "task_success": 0.2,
+    "signal_match": 0.1,
+    "tool_efficiency": 0.1
   },
   "routing_expectation": {
-    "should_activate": ["fin-advisor-math"]
+    "should_activate": [
+      "fin-advisor-math"
+    ]
   },
   "output_contract": {
-    "format": "json_only",
+    "format": "json",
     "required_fields": [
       "years_by_rate",
       "fastest_rate",
@@ -48,7 +54,6 @@
       "slowest_years"
     ],
     "notes": [
-      "不要输出 Markdown 代码块",
       "years_by_rate 的键固定为 6%、8%、10%、12%",
       "years 值返回数字并保留两位小数"
     ]
@@ -73,28 +78,32 @@
         "id": "years_6",
         "type": "numeric_tolerance",
         "path": "years_by_rate.6%",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       },
       {
         "id": "years_8",
         "type": "numeric_tolerance",
         "path": "years_by_rate.8%",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       },
       {
         "id": "years_10",
         "type": "numeric_tolerance",
         "path": "years_by_rate.10%",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       },
       {
         "id": "years_12",
         "type": "numeric_tolerance",
         "path": "years_by_rate.12%",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.2
       },
       {
@@ -107,7 +116,8 @@
         "id": "fastest_years",
         "type": "numeric_tolerance",
         "path": "fastest_years",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.05
       },
       {
@@ -120,7 +130,8 @@
         "id": "slowest_years",
         "type": "numeric_tolerance",
         "path": "slowest_years",
-        "tolerance": 0.01,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.025
       }
     ]

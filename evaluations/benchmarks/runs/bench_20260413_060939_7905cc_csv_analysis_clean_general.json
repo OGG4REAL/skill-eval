@@ -1,0 +1,299 @@
+{
+  "benchmark_id": "bench_20260413_060939_7905cc",
+  "started_at": "2026-04-13T06:09:39.138+00:00",
+  "finished_at": "2026-04-13T06:10:59.053+00:00",
+  "scope": {
+    "task_id": "csv_analysis_clean_general",
+    "group": null,
+    "all": false,
+    "variants": [
+      "no_skill",
+      "with_skill"
+    ],
+    "trials": 1
+  },
+  "summary": {
+    "cases_total": 2,
+    "cases_succeeded": 2,
+    "cases_failed": 0
+  },
+  "cases": [
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "no_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260413-060939-7905cc--csv-analysis-clean-general--no-skill--t1",
+      "run_id": "run_20260413_060940_07f650",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [],
+        "pre_injected_skills": [],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 34069,
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "script_stdout",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "row_count",
+              "type": "exact_match",
+              "path": "row_count",
+              "expected": 12,
+              "actual": 12,
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.row_count",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "total_revenue",
+              "type": "numeric_tolerance",
+              "path": "total_revenue",
+              "expected": 242560,
+              "actual": 242560,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.total_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "top_region_by_revenue",
+              "type": "exact_match",
+              "path": "top_region_by_revenue",
+              "expected": "East",
+              "actual": "East",
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_region_by_revenue",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "top_region_revenue",
+              "type": "numeric_tolerance",
+              "path": "top_region_revenue",
+              "expected": 83400,
+              "actual": 83400,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.top_region_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "highest_refund_rate_region",
+              "type": "exact_match",
+              "path": "highest_refund_rate_region",
+              "expected": "West",
+              "actual": "West",
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.highest_refund_rate_region",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "highest_refund_rate_pct",
+              "type": "numeric_tolerance",
+              "path": "highest_refund_rate_pct",
+              "expected": 7.12,
+              "actual": 7.12,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.highest_refund_rate_pct",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            }
+          ],
+          "summary": {
+            "total_checks": 6,
+            "passed_checks": 6,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "script_stdout_merge",
+            "bash_candidates": 1,
+            "merged_from_indices": [
+              0
+            ]
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": [
+          "signal 豁免(no_skill): skill:csv-data-summarizer"
+        ]
+      }
+    },
+    {
+      "task_id": "csv_analysis_clean_general",
+      "variant_id": "with_skill",
+      "trial_index": 1,
+      "session_id": "bench-20260413-060939-7905cc--csv-analysis-clean-general--with-skill--t1",
+      "run_id": "run_20260413_061015_eb7eb2",
+      "status": "passed",
+      "run_status": "passed",
+      "error": null,
+      "variant": {
+        "enabled_skills": [
+          "csv-data-summarizer"
+        ],
+        "pre_injected_skills": [
+          "csv-data-summarizer"
+        ],
+        "skill_version_map": {},
+        "routing_enabled": false
+      },
+      "duration_ms": 43594,
+      "tool_calls": 6,
+      "tool_errors": 0,
+      "final_response_present": true,
+      "score": {
+        "weighted_score": 1.0,
+        "result_score": 1.0,
+        "result_pass": true,
+        "result_detail": {
+          "configured": true,
+          "mode": "rubric",
+          "target": "script_stdout",
+          "score": 1.0,
+          "passed": true,
+          "checks": [
+            {
+              "id": "row_count",
+              "type": "exact_match",
+              "path": "row_count",
+              "expected": 12,
+              "actual": 12,
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.row_count",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "total_revenue",
+              "type": "numeric_tolerance",
+              "path": "total_revenue",
+              "expected": 242560,
+              "actual": 242560.0,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.total_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "top_region_by_revenue",
+              "type": "exact_match",
+              "path": "top_region_by_revenue",
+              "expected": "East",
+              "actual": "East",
+              "passed": true,
+              "weight": 0.15,
+              "expected_source": "task.ground_truth.top_region_by_revenue",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "top_region_revenue",
+              "type": "numeric_tolerance",
+              "path": "top_region_revenue",
+              "expected": 83400,
+              "actual": 83400.0,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.top_region_revenue",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            },
+            {
+              "id": "highest_refund_rate_region",
+              "type": "exact_match",
+              "path": "highest_refund_rate_region",
+              "expected": "West",
+              "actual": "West",
+              "passed": true,
+              "weight": 0.1,
+              "expected_source": "task.ground_truth.highest_refund_rate_region",
+              "message": "exact_match 通过"
+            },
+            {
+              "id": "highest_refund_rate_pct",
+              "type": "numeric_tolerance",
+              "path": "highest_refund_rate_pct",
+              "expected": 7.12,
+              "actual": 7.12,
+              "passed": true,
+              "weight": 0.2,
+              "expected_source": "task.ground_truth.highest_refund_rate_pct",
+              "message": "numeric_tolerance(relative) 通过，相对差 0.000000"
+            }
+          ],
+          "summary": {
+            "total_checks": 6,
+            "passed_checks": 6,
+            "failed_checks": 0
+          },
+          "target_detail": {
+            "parser": "script_stdout_merge",
+            "bash_candidates": 2,
+            "merged_from_indices": [
+              0,
+              1
+            ]
+          }
+        },
+        "scores": {
+          "task_success": 1.0,
+          "result_score": 1.0,
+          "signal_match": 1.0,
+          "artifact_match": 1.0,
+          "tool_efficiency": 1.0,
+          "trajectory_quality": 1.0
+        },
+        "notes": []
+      }
+    }
+  ],
+  "aggregates": {
+    "by_task_variant": [
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "no_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "result_pass_rate": 1.0,
+        "avg_result_score": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 34069.0,
+        "avg_tool_calls": 3.0,
+        "avg_tool_errors": 0.0
+      },
+      {
+        "task_id": "csv_analysis_clean_general",
+        "variant_id": "with_skill",
+        "trials": 1,
+        "pass_rate": 1.0,
+        "result_pass_rate": 1.0,
+        "avg_result_score": 1.0,
+        "avg_weighted_score": 1.0,
+        "avg_duration_ms": 43594.0,
+        "avg_tool_calls": 6.0,
+        "avg_tool_errors": 0.0
+      }
+    ]
+  }
+}

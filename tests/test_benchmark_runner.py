@@ -933,3 +933,59 @@ class TestSessionsRootPassthrough:
             "trajectory.jsonl 应在 runner 的 sessions_root 下"
         assert (sessions_root / sid / "runs" / case["run_id"] / "artifacts.json").exists(), \
             "artifacts.json 应在 runner 的 sessions_root 下"
+
+
+# ── 10. _build_eval_query 测试 ──────────────────────────────
+
+class TestBuildEvalQuery:
+    """验证 output_contract 注入逻辑"""
+
+    def test_no_output_contract_returns_raw_query(self):
+        task = {"input": {"user_query": "分析这份数据"}}
+        assert BenchmarkRunner._build_eval_query(task) == "分析这份数据"
+
+    def test_empty_output_contract_returns_raw_query(self):
+        task = {"input": {"user_query": "分析这份数据"}, "output_contract": {}}
+        assert BenchmarkRunner._build_eval_query(task) == "分析这份数据"
+
+    def test_output_contract_no_required_fields_returns_raw_query(self):
+        task = {
+            "input": {"user_query": "分析这份数据"},
+            "output_contract": {"format": "json_only"},
+        }
+        assert BenchmarkRunner._build_eval_query(task) == "分析这份数据"
+
+    def test_required_fields_appended(self):
+        task = {
+            "input": {"user_query": "帮我分析一下"},
+            "output_contract": {
+                "required_fields": ["total_revenue", "top_region"],
+            },
+        }
+        result = BenchmarkRunner._build_eval_query(task)
+        assert result.startswith("帮我分析一下")
+        assert "total_revenue" in result
+        assert "top_region" in result
+        assert "【输出要求】" in result
+
+    def test_notes_appended(self):
+        task = {
+            "input": {"user_query": "分析"},
+            "output_contract": {
+                "required_fields": ["answer"],
+                "notes": ["数值保留两位小数", "金额单位为元"],
+            },
+        }
+        result = BenchmarkRunner._build_eval_query(task)
+        assert "数值保留两位小数" in result
+        assert "金额单位为元" in result
+
+    def test_original_query_unchanged(self):
+        """确保不会修改 task dict 本身"""
+        task = {
+            "input": {"user_query": "原始查询"},
+            "output_contract": {"required_fields": ["x"]},
+        }
+        original_query = task["input"]["user_query"]
+        BenchmarkRunner._build_eval_query(task)
+        assert task["input"]["user_query"] == original_query

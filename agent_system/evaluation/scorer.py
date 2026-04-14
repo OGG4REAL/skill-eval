@@ -201,6 +201,7 @@ class RuleScorer:
             final_response_present=final_response_present,
             session_id=session_id,
             run_dir=run_dir,
+            trajectory=trajectory,
         )
         detail_metrics["result_detail"] = result_detail
         detail_metrics["result_pass"] = result_detail.get("passed")
@@ -537,13 +538,12 @@ class RuleScorer:
                 normalized[effective_key] = normalized.get(effective_key, 0.0) + value
             return normalized
 
-        # 向后兼容旧 task 的 scoring_weights，同时把结果分提升为主导权重。
+        # 向后兼容旧 task 的 scoring_weights — 结果优先，过程指标降为诊断
         return {
-            "result_score": 0.65,
+            "result_score": 0.60,
+            "task_success": 0.20,
             "signal_match": raw_weights.get("signal_match", 0.10),
-            "artifact_match": raw_weights.get("artifact_match", 0.05),
             "tool_efficiency": raw_weights.get("tool_efficiency", 0.10),
-            "trajectory_quality": raw_weights.get("trajectory_quality", 0.10),
         }
 
     # ── Phase 1 共用评分子项 ─────────────────────────────────

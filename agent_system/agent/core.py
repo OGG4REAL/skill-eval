@@ -27,6 +27,29 @@ PERSISTED_OUTPUT_PREVIEW_SIZE = Config.PERSISTED_OUTPUT_PREVIEW_SIZE
 TOOL_RESULTS_DIR_NAME = Config.TOOL_RESULTS_DIR_NAME
 
 
+def _repair_xml_garbled_args(tool_args: dict) -> dict:
+    """
+    Repair tool args where GLM's Anthropic-compatible API mixes XML tags into JSON keys.
+    Pattern: {"key1</arg_key>value1</arg_value><arg_key>key2": actual_value2, ...}
+    → {"key1": "value1", "key2": actual_value2, ...}
+    """
+    repaired = {}
+    for key, value in tool_args.items():
+        if "</arg_key>" in key:
+            parts = key.split("</arg_key>", 1)
+            first_key = parts[0]
+            remainder = parts[1]
+            if "</arg_value><arg_key>" in remainder:
+                val_part, second_key = remainder.split("</arg_value><arg_key>", 1)
+                repaired[first_key] = val_part
+                repaired[second_key] = value
+            else:
+                repaired[first_key] = value
+        else:
+            repaired[key] = value
+    return repaired
+
+
 # 回调类型定义
 LogCallback = Callable[[str, str], None]  # (event_type, message)
 
@@ -428,6 +451,10 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
                         tool_args = json.loads(tool_args_str)
                     except json.JSONDecodeError:
                         tool_args = {}
+
+                    # GLM 模型有时会将 XML 标签混入 JSON key，修复它
+                    if any("</arg_key>" in str(k) for k in tool_args):
+                        tool_args = _repair_xml_garbled_args(tool_args)
                     
                     console.print(f"  -> 调用工具: [bold]{tool_name}[/bold]")
                     console.print(f"    参数: {tool_args}")
@@ -520,8 +547,11 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
                         try:
                             result = self.tool_registry.execute(tool_name, **tool_args)
                             result_str = str(result)
-                            recorder.record_tool_call_finish(tool_name, tc_start, status="success")
-                            
+                            recorder.record_tool_call_finish(
+                                tool_name, tc_start, status="success",
+                                output=result_str if tool_name == "Bash" else None,
+                            )
+
                             # 检测产物创建
                             if tool_name == "Write" and "path" in tool_args:
                                 recorder.record_artifact_created(tool_args["path"])

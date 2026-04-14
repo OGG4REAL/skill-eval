@@ -10,6 +10,7 @@ from agent_system.evaluation.benchmark_store import BenchmarkStore
 from agent_system.evaluation.skill_comparator import (
     SkillComparator,
     _safe_diff,
+    _normalized_gain,
     _verdict,
     _extract_skill_map_from_cases,
     _write_comparison_json,
@@ -77,6 +78,22 @@ class TestHelpers:
         assert _verdict(0.0) == "neutral"
         assert _verdict(None) == "N/A"
 
+    def test_normalized_gain(self):
+        # baseline=0.6, uplift=0.3 → headroom=0.4 → g=0.75
+        assert _normalized_gain(0.3, 0.6) == pytest.approx(0.75)
+
+    def test_normalized_gain_from_zero(self):
+        # baseline=0.0, uplift=0.5 → headroom=1.0 → g=0.5
+        assert _normalized_gain(0.5, 0.0) == pytest.approx(0.5)
+
+    def test_normalized_gain_ceiling(self):
+        # baseline=1.0 → headroom=0 → None
+        assert _normalized_gain(0.0, 1.0) is None
+
+    def test_normalized_gain_none_inputs(self):
+        assert _normalized_gain(None, 0.5) is None
+        assert _normalized_gain(0.3, None) is None
+
 
 # ── 单 benchmark 比较 ──────────────────────────────────
 
@@ -106,6 +123,8 @@ class TestCompareBenchmark:
         assert delta["baseline_result_score"] == pytest.approx(0.7)
         assert delta["target_result_score"] == pytest.approx(1.0)
         assert delta["result_score_uplift"] == pytest.approx(0.3)
+        # normalized_gain = 0.3 / (1.0 - 0.7) = 1.0
+        assert delta["normalized_gain"] == pytest.approx(1.0)
         assert delta["baseline_result_pass_rate"] == pytest.approx(0.5)
         assert delta["target_result_pass_rate"] == pytest.approx(1.0)
         assert delta["baseline_score"] == pytest.approx(0.8)
@@ -190,6 +209,8 @@ class TestSkillSummary:
         assert by_skill[0]["baseline_result_avg"] == pytest.approx(0.7)
         assert by_skill[0]["target_result_avg"] == pytest.approx(1.0)
         assert by_skill[0]["avg_result_score_uplift"] == pytest.approx(0.3)
+        # normalized_gain = 0.3 / (1 - 0.7) = 1.0
+        assert by_skill[0]["avg_normalized_gain"] == pytest.approx(1.0)
         assert by_skill[0]["baseline_avg"] == pytest.approx(0.8)
         assert by_skill[0]["skill_avg"] == pytest.approx(1.0)
         assert by_skill[0]["avg_uplift"] == pytest.approx(0.2)

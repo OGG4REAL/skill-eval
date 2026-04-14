@@ -163,16 +163,22 @@ class RunRecorder:
         ))
         return time.time()
 
+    _TOOL_OUTPUT_MAX = 8192  # trajectory 中保存的工具输出上限
+
     def record_tool_call_finish(
         self,
         tool_name: str,
         start_time: float,
         status: str = "success",
         error: Optional[str] = None,
+        output: Optional[str] = None,
     ) -> None:
         duration_ms = int((time.time() - start_time) * 1000)
         if status != "success":
             self._tool_errors += 1
+        truncated_output = None
+        if output is not None:
+            truncated_output = output[:self._TOOL_OUTPUT_MAX] if len(output) > self._TOOL_OUTPUT_MAX else output
         self._emit(TrajectoryEvent(
             type="tool_call_finished",
             run_id=self.run_id,
@@ -181,6 +187,7 @@ class RunRecorder:
             tool_name=tool_name,
             status=status,
             duration_ms=duration_ms,
+            message=truncated_output,
             error=error[:300] if error else None,
         ))
 

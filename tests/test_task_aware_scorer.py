@@ -695,7 +695,7 @@ class TestVerifierScoring:
         assert ev.scores["task_success"] == 0.0
         assert ev.metrics["result_pass"] is False
         assert "failure_reason" in ev.metrics["result_detail"]
-        assert "合法 JSON-only 输出" in ev.metrics["result_detail"]["failure_reason"]
+        assert "JSON" in ev.metrics["result_detail"]["failure_reason"]
         assert any("result 验证失败" in n for n in ev.notes)
 
     def test_result_first_weights_override_legacy_weights(self):
@@ -710,8 +710,8 @@ class TestVerifierScoring:
             session_id="s1",
             run_dir="/tmp/run",
         )
-        assert ev.metrics["scoring_weights_used"]["result_score"] == pytest.approx(0.65)
-        assert "task_success" not in ev.metrics["scoring_weights_used"]
+        assert ev.metrics["scoring_weights_used"]["result_score"] == pytest.approx(0.60)
+        assert ev.metrics["scoring_weights_used"]["task_success"] == pytest.approx(0.20)
         assert ev.metrics["weighted_score"] < 0.5
 
     def test_expected_from_can_override_default_ground_truth_path(self):
@@ -743,3 +743,403 @@ class TestVerifierScoring:
         )
         assert ev.scores["result_score"] == 1.0
         assert ev.metrics["result_detail"]["checks"][0]["expected_source"] == "task.ground_truth.nested.answer"
+
+
+class TestScriptStdoutTarget:
+    """验证 script_stdout target 从 trajectory 中提取 Bash 输出并校验。"""
+
+    def _stdout_task(self, **overrides) -> dict:
+        task = _task(
+            expected_signals=[],
+            expected_artifacts=[],
+            pass_criteria={},
+            ground_truth={"value": 42},
+            scoring_weights={
+                "result_score": 0.60,
+                "task_success": 0.20,
+                "signal_match": 0.10,
+                "tool_efficiency": 0.10,
+            },
+            verifier={
+                "mode": "rubric",
+                "target": "script_stdout",
+                "checks": [
+                    {
+                        "id": "value",
+                        "type": "exact_match",
+                        "path": "value",
+                        "weight": 1.0,
+                    }
+                ],
+            },
+        )
+        task.update(overrides)
+        return task
+
+    def test_extracts_json_from_last_bash_stdout(self):
+        scorer = RuleScorer()
+        trajectory = [
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Read", "status": "success"},
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 42}'},
+        ]
+        ev = scorer.score_task_run(
+            task=self._stdout_task(),
+            run=_run(),
+            trajectory=trajectory,
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="分析完毕",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_uses_last_successful_bash(self):
+        scorer = RuleScorer()
+        trajectory = [
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 99}'},
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 42}'},
+        ]
+        ev = scorer.score_task_run(
+            task=self._stdout_task(),
+            run=_run(),
+            trajectory=trajectory,
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="done",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_no_bash_in_trajectory_fails(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=self._stdout_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="done",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 0.0
+        assert "Bash" in ev.metrics["result_detail"]["failure_reason"]
+
+    def test_last_bash_non_json_falls_back_to_earlier(self):
+        """最后一个 Bash 输出不是 JSON，应从更早的 dict 输出中提取。"""
+        scorer = RuleScorer()
+        trajectory = [
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 42}'},
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": "验证通过，没有错误。"},
+        ]
+        ev = scorer.score_task_run(
+            task=self._stdout_task(),
+            run=_run(),
+            trajectory=trajectory,
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="done",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+        # merge 路径：从 dict 输出合并
+        assert ev.metrics["result_detail"]["target_detail"]["parser"] == "script_stdout_merge"
+
+    def test_multi_bash_dict_outputs_are_merged(self):
+        """A+B 在第一个脚本、C 在第二个脚本，三个字段应全部通过校验。"""
+        task = self._stdout_task(
+            ground_truth={"value": 42, "region": "North", "rate": 0.5},
+            verifier={
+                "mode": "rubric",
+                "target": "script_stdout",
+                "checks": [
+                    {"id": "value",  "type": "exact_match", "path": "value",  "expected": 42,      "weight": 1.0},
+                    {"id": "region", "type": "exact_match", "path": "region", "expected": "North",  "weight": 1.0},
+                    {"id": "rate",   "type": "exact_match", "path": "rate",   "expected": 0.5,      "weight": 1.0},
+                ],
+            },
+        )
+        scorer = RuleScorer()
+        trajectory = [
+            # 第一个脚本：输出 value + region
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 42, "region": "North"}'},
+            # 第二个脚本：输出 rate
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"rate": 0.5}'},
+        ]
+        ev = scorer.score_task_run(
+            task=task,
+            run=_run(),
+            trajectory=trajectory,
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="done",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+        detail = ev.metrics["result_detail"]
+        assert detail["target_detail"]["parser"] == "script_stdout_merge"
+        assert detail["summary"]["passed_checks"] == 3
+
+    def test_later_bash_overrides_earlier_on_key_conflict(self):
+        """key 冲突时，越晚的脚本输出优先。"""
+        scorer = RuleScorer()
+        trajectory = [
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 0}'},   # 早：value=0（错误中间值）
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 42}'},  # 晚：value=42（正确最终值）
+        ]
+        ev = scorer.score_task_run(
+            task=self._stdout_task(),
+            run=_run(),
+            trajectory=trajectory,
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="done",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_all_bash_non_json_fails(self):
+        scorer = RuleScorer()
+        trajectory = [
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": "step 1 done"},
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": "all done"},
+        ]
+        ev = scorer.score_task_run(
+            task=self._stdout_task(),
+            run=_run(),
+            trajectory=trajectory,
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="done",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 0.0
+        assert "均无法解析为 JSON" in ev.metrics["result_detail"]["failure_reason"]
+
+    def test_failed_bash_is_skipped(self):
+        scorer = RuleScorer()
+        trajectory = [
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "success",
+             "message": '{"value": 42}'},
+            {"type": "tool_call_finished", "run_id": "r1", "tool_name": "Bash", "status": "error",
+             "message": '{"value": 0}'},
+        ]
+        ev = scorer.score_task_run(
+            task=self._stdout_task(),
+            run=_run(),
+            trajectory=trajectory,
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="done",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+
+class TestFuzzyJsonExtraction:
+    """验证 final_response_json target 的模糊 JSON 提取能力。"""
+
+    def test_pure_json(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"answer": "ok"}',
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_json_in_code_fence(self):
+        scorer = RuleScorer()
+        text = '这是分析结果：\n```json\n{"answer": "ok"}\n```\n以上。'
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text=text,
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_json_in_plain_code_fence(self):
+        scorer = RuleScorer()
+        text = '结果如下：\n```\n{"answer": "ok"}\n```'
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text=text,
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_json_embedded_in_text(self):
+        scorer = RuleScorer()
+        text = '分析结果为 {"answer": "ok"}，请查收。'
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text=text,
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_no_json_at_all_fails(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=_verifier_task(),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text="没有任何 JSON 内容",
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 0.0
+
+
+class TestRelativeTolerance:
+    """验证 numeric_tolerance 的 relative 模式。"""
+
+    def _rel_task(self, expected_val, tolerance=0.001):
+        return _task(
+            expected_signals=[],
+            expected_artifacts=[],
+            pass_criteria={},
+            ground_truth={"value": expected_val},
+            scoring_weights={
+                "result_score": 0.60,
+                "task_success": 0.20,
+                "signal_match": 0.10,
+                "tool_efficiency": 0.10,
+            },
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [
+                    {
+                        "id": "value",
+                        "type": "numeric_tolerance",
+                        "path": "value",
+                        "tolerance": tolerance,
+                        "tolerance_mode": "relative",
+                        "weight": 1.0,
+                    }
+                ],
+            },
+        )
+
+    def test_relative_pass_large_number(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=self._rel_task(1000000),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"value": 1000500}',  # 0.05% off, within 0.1%
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_relative_fail_large_number(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=self._rel_task(1000000),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"value": 1002000}',  # 0.2% off, exceeds 0.1%
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 0.0
+
+    def test_relative_with_zero_expected_falls_back(self):
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=self._rel_task(0, tolerance=0.01),
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"value": 0.005}',  # abs diff 0.005 <= 0.01
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0
+
+    def test_absolute_mode_still_works(self):
+        """默认 absolute 模式不受影响"""
+        task = _task(
+            expected_signals=[],
+            expected_artifacts=[],
+            pass_criteria={},
+            ground_truth={"value": 1000000},
+            scoring_weights={
+                "result_score": 0.60,
+                "task_success": 0.20,
+                "signal_match": 0.10,
+                "tool_efficiency": 0.10,
+            },
+            verifier={
+                "mode": "rubric",
+                "target": "final_response_json",
+                "checks": [
+                    {
+                        "id": "value",
+                        "type": "numeric_tolerance",
+                        "path": "value",
+                        "tolerance": 0.01,
+                        "weight": 1.0,
+                    }
+                ],
+            },
+        )
+        scorer = RuleScorer()
+        ev = scorer.score_task_run(
+            task=task,
+            run=_run(),
+            trajectory=[],
+            artifacts=[],
+            final_response_present=True,
+            final_response_text='{"value": 1000000.005}',
+            session_id="s1",
+            run_dir="/tmp/run",
+        )
+        assert ev.scores["result_score"] == 1.0

@@ -2,10 +2,12 @@
 Result-first verifier
 
 面向最终结果而非 trajectory，对 task 里预埋的 verifier 规则执行首版校验。
+支持 target: final_response_json (含模糊提取) / script_stdout (从 trajectory 提取)
 """
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,7 @@ class ResultVerifier:
         final_response_present: bool,
         session_id: str | None,
         run_dir: str | Path | None,
+        trajectory: list[dict] | None = None,
     ) -> dict[str, Any]:
         self._current_task = task
         verifier = task.get("verifier")
@@ -48,6 +51,7 @@ class ResultVerifier:
                     final_response_present=final_response_present,
                     session_id=session_id,
                     run_dir=run_dir,
+                    trajectory=trajectory,
                 ),
             }
 
@@ -59,6 +63,7 @@ class ResultVerifier:
             final_response_present=final_response_present,
             session_id=session_id,
             run_dir=run_dir,
+            trajectory=trajectory,
         )
         target = verifier.get("target")
         mode = verifier.get("mode")
@@ -148,6 +153,7 @@ class ResultVerifier:
         final_response_present: bool,
         session_id: str | None,
         run_dir: str | Path | None,
+        trajectory: list[dict] | None = None,
     ) -> dict[str, Any]:
         return {
             "task": task,
@@ -157,6 +163,7 @@ class ResultVerifier:
             "final_response_present": final_response_present,
             "session_id": session_id,
             "run_dir": str(run_dir) if run_dir is not None else None,
+            "trajectory": trajectory or [],
         }
 
     def _resolve_target_value(
@@ -166,26 +173,133 @@ class ResultVerifier:
     ) -> tuple[Any, dict[str, Any]]:
         target = verifier.get("target")
         if target == "final_response_json":
-            return self._parse_json_only_response(context["final_response_text"])
+            return self._parse_json_response(context["final_response_text"])
+        if target == "script_stdout":
+            return self._parse_script_stdout(context.get("trajectory", []))
         raise ValueError(f"暂不支持的 verifier.target: {target!r}")
 
-    def _parse_json_only_response(self, text: str) -> tuple[Any, dict[str, Any]]:
+    # ── JSON 解析 ──────────────────────────────────────────────
+
+    def _parse_json_response(self, text: str) -> tuple[Any, dict[str, Any]]:
+        """从 response 中提取 JSON，支持三级 fallback：
+        1. 纯 JSON（json.loads）
+        2. markdown code fence 中的 JSON
+        3. 文本中最后一个 {...} 块
+        """
         if not isinstance(text, str) or not text.strip():
-            raise ValueError("final_response_text 为空，无法解析为 JSON-only 输出")
+            raise ValueError("final_response_text 为空，无法解析为 JSON 输出")
 
         stripped = text.strip()
+
+        # 1) 纯 JSON
         try:
             parsed = json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"final_response_text 不是合法 JSON-only 输出: {exc.msg} (line {exc.lineno}, col {exc.colno})"
-            ) from exc
+            return parsed, {
+                "parser": "json.loads",
+                "raw_length": len(text),
+                "parsed_type": type(parsed).__name__,
+            }
+        except json.JSONDecodeError:
+            pass
 
-        return parsed, {
-            "parser": "json.loads",
-            "raw_length": len(text),
-            "parsed_type": type(parsed).__name__,
-        }
+        # 2) markdown code fence: ```json ... ``` 或 ``` ... ```
+        fence_pattern = re.compile(
+            r"```(?:json)?\s*\n(.*?)```", re.DOTALL
+        )
+        for m in reversed(list(fence_pattern.finditer(stripped))):
+            try:
+                parsed = json.loads(m.group(1).strip())
+                return parsed, {
+                    "parser": "code_fence",
+                    "raw_length": len(text),
+                    "parsed_type": type(parsed).__name__,
+                }
+            except json.JSONDecodeError:
+                continue
+
+        # 3) 最后一个 {...} 块
+        brace_pattern = re.compile(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}")
+        matches = list(brace_pattern.finditer(stripped))
+        for m in reversed(matches):
+            try:
+                parsed = json.loads(m.group(0))
+                return parsed, {
+                    "parser": "brace_extract",
+                    "raw_length": len(text),
+                    "parsed_type": type(parsed).__name__,
+                }
+            except json.JSONDecodeError:
+                continue
+
+        raise ValueError(
+            "final_response_text 中未找到可解析的 JSON 内容"
+        )
+
+    # ── script_stdout 提取 ─────────────────────────────────────
+
+    def _parse_script_stdout(self, trajectory: list[dict]) -> tuple[Any, dict[str, Any]]:
+        """从 trajectory 中提取成功 Bash 执行的 stdout，合并所有 JSON dict 输出。
+
+        agent 可能分段执行多个 Bash（如 A+B 在一个脚本、C 在另一个脚本），
+        策略：
+        1. 收集所有成功 Bash 的 stdout（按时间正序，即 reversed(trajectory) 再 reverse）
+        2. 解析每个输出为 JSON；dict 类型的输出逐层 merge（越晚越优先）
+        3. 如果 merge 结果非空，返回合并后的 dict
+        4. 如果没有 dict 输出，fallback 到最后一个可解析的 JSON（list/number 等）
+        5. 全部无法解析时抛出 ValueError
+        """
+        bash_outputs: list[str] = []
+        for event in reversed(trajectory):
+            if (
+                event.get("type") == "tool_call_finished"
+                and event.get("tool_name") == "Bash"
+                and event.get("status") == "success"
+                and event.get("message")
+            ):
+                bash_outputs.append(event["message"])
+
+        if not bash_outputs:
+            raise ValueError(
+                "trajectory 中未找到成功的 Bash 执行输出"
+                "（script_stdout target 需要 Bash 工具产生 stdout）"
+            )
+
+        # bash_outputs 目前是"逆序"（最新的在前），还原为时间正序再处理
+        bash_outputs_chrono = list(reversed(bash_outputs))
+
+        merged: dict = {}
+        non_dict_fallback: tuple[Any, dict] | None = None
+        dict_sources: list[int] = []
+        last_error = None
+
+        for idx, output in enumerate(bash_outputs_chrono):
+            try:
+                parsed, detail = self._parse_json_response(output)
+            except ValueError as exc:
+                last_error = exc
+                continue
+
+            if isinstance(parsed, dict):
+                merged.update(parsed)
+                dict_sources.append(idx)
+            else:
+                non_dict_fallback = (parsed, detail)
+
+        if merged:
+            return merged, {
+                "parser": "script_stdout_merge",
+                "bash_candidates": len(bash_outputs_chrono),
+                "merged_from_indices": dict_sources,
+            }
+
+        if non_dict_fallback is not None:
+            parsed, detail = non_dict_fallback
+            detail["bash_candidates"] = len(bash_outputs_chrono)
+            return parsed, detail
+
+        raise ValueError(
+            f"trajectory 中 {len(bash_outputs_chrono)} 个 Bash 输出均无法解析为 JSON: {last_error}"
+        )
 
     def _run_check(self, target_value: Any, check: dict[str, Any]) -> dict[str, Any]:
         check_id = check.get("id") or check.get("path") or "unnamed_check"
@@ -213,7 +327,10 @@ class ResultVerifier:
             message = "exact_match 通过" if passed else "exact_match 不匹配"
         elif check_type == "numeric_tolerance":
             tolerance = check.get("tolerance")
-            passed, message = self._check_numeric_tolerance(actual, expected, tolerance)
+            tolerance_mode = check.get("tolerance_mode", "absolute")
+            passed, message = self._check_numeric_tolerance(
+                actual, expected, tolerance, tolerance_mode,
+            )
         elif check_type == "json_subset":
             passed = _is_json_subset(actual, expected)
             message = "json_subset 通过" if passed else "json_subset 不匹配"
@@ -261,6 +378,7 @@ class ResultVerifier:
         actual: Any,
         expected: Any,
         tolerance: Any,
+        tolerance_mode: str = "absolute",
     ) -> tuple[bool, str]:
         if isinstance(actual, bool) or isinstance(expected, bool):
             return False, "numeric_tolerance 要求 actual/expected 都是数值，不能是 bool"
@@ -269,11 +387,34 @@ class ResultVerifier:
         if not isinstance(tolerance, (int, float)):
             return False, "numeric_tolerance 缺少合法 tolerance"
 
-        diff = abs(float(actual) - float(expected))
-        passed = diff <= float(tolerance)
+        a, e, t = float(actual), float(expected), float(tolerance)
+        diff = abs(a - e)
+
+        if tolerance_mode == "relative":
+            # 相对容差: |actual - expected| / |expected| <= tolerance
+            # expected == 0 时退化为绝对容差
+            if e == 0.0:
+                passed = diff <= t
+                mode_label = "relative(fallback_abs, expected=0)"
+            else:
+                rel_diff = diff / abs(e)
+                passed = rel_diff <= t
+                if passed:
+                    return True, f"numeric_tolerance(relative) 通过，相对差 {rel_diff:.6f}"
+                return False, (
+                    f"numeric_tolerance(relative) 不匹配，"
+                    f"相对差 {rel_diff:.6f} > tolerance {t:.6f}"
+                )
+        else:
+            mode_label = "absolute"
+
+        passed = diff <= t
         if passed:
-            return True, f"numeric_tolerance 通过，差值 {diff:.6f}"
-        return False, f"numeric_tolerance 不匹配，差值 {diff:.6f} > tolerance {float(tolerance):.6f}"
+            return True, f"numeric_tolerance({mode_label}) 通过，差值 {diff:.6f}"
+        return False, (
+            f"numeric_tolerance({mode_label}) 不匹配，"
+            f"差值 {diff:.6f} > tolerance {t:.6f}"
+        )
 
     @staticmethod
     def _compute_score(

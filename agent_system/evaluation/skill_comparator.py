@@ -150,6 +150,9 @@ class SkillComparator:
         duration_diff = _safe_diff(t_dur, b_dur)
         verdict_basis = result_score_uplift if result_score_uplift is not None else score_uplift
 
+        # Hake's normalized gain: g = uplift / (1 - baseline)
+        normalized_gain = _normalized_gain(result_score_uplift, b_result_score)
+
         return {
             "task_id": task_id,
             "skill": skill,
@@ -158,6 +161,7 @@ class SkillComparator:
             "baseline_result_score": _r(b_result_score),
             "target_result_score": _r(t_result_score),
             "result_score_uplift": _r(result_score_uplift),
+            "normalized_gain": _r(normalized_gain),
             "baseline_result_pass_rate": _r(b_result_pass),
             "target_result_pass_rate": _r(t_result_pass),
             "result_pass_rate_uplift": _r(result_pass_uplift),
@@ -199,6 +203,11 @@ class SkillComparator:
                 for d in deltas
                 if d["result_score_uplift"] is not None
             ]
+            norm_gains = [
+                d["normalized_gain"]
+                for d in deltas
+                if d.get("normalized_gain") is not None
+            ]
             baseline_scores = [d["baseline_score"] for d in deltas if d["baseline_score"] is not None]
             target_scores = [d["target_score"] for d in deltas if d["target_score"] is not None]
             uplifts = [d["score_uplift"] for d in deltas if d["score_uplift"] is not None]
@@ -213,6 +222,7 @@ class SkillComparator:
                 "baseline_result_avg": _r(_avg(baseline_result_scores)),
                 "target_result_avg": _r(_avg(target_result_scores)),
                 "avg_result_score_uplift": _r(_avg(result_uplifts)),
+                "avg_normalized_gain": _r(_avg(norm_gains)),
                 "baseline_avg": _r(_avg(baseline_scores)),
                 "skill_avg": _r(_avg(target_scores)),
                 "avg_uplift": _r(_avg(uplifts)),
@@ -316,15 +326,16 @@ class SkillComparator:
         if task_deltas:
             lines.append("── Task-Level Delta ──")
             lines.append(
-                f"  {'task_id':<45} {'res_base':>8} {'res_tgt':>8} {'res_up':>8} {'verdict'}"
+                f"  {'task_id':<40} {'res_base':>8} {'res_tgt':>8} {'res_up':>8} {'norm_g':>8} {'verdict'}"
             )
-            lines.append("  " + "─" * 80)
+            lines.append("  " + "─" * 85)
             for d in task_deltas:
                 bs = _fmt(d.get("baseline_result_score"))
                 ts = _fmt(d.get("target_result_score"))
                 up = _fmt(d.get("result_score_uplift"), signed=True)
+                ng = _fmt(d.get("normalized_gain"), signed=True)
                 vd = d.get("verdict", "")
-                lines.append(f"  {d['task_id']:<45} {bs:>8} {ts:>8} {up:>8} {vd}")
+                lines.append(f"  {d['task_id']:<40} {bs:>8} {ts:>8} {up:>8} {ng:>8} {vd}")
             lines.append("")
 
         skill_summary = result.get("comparisons", {}).get("by_skill", [])
@@ -334,7 +345,8 @@ class SkillComparator:
                 lines.append(f"  [{s['skill']}]  tasks={s['tasks']}  "
                              f"result_baseline_avg={_fmt(s.get('baseline_result_avg'))}  "
                              f"result_target_avg={_fmt(s.get('target_result_avg'))}  "
-                             f"result_avg_uplift={_fmt(s.get('avg_result_score_uplift'), signed=True)}")
+                             f"result_avg_uplift={_fmt(s.get('avg_result_score_uplift'), signed=True)}  "
+                             f"avg_norm_gain={_fmt(s.get('avg_normalized_gain'), signed=True)}")
                 if s.get("positive_tasks"):
                     lines.append(f"    positive: {', '.join(s['positive_tasks'])}")
                 if s.get("negative_tasks"):
@@ -366,6 +378,18 @@ def _safe_diff(a: float | None, b: float | None) -> float | None:
     if a is None or b is None:
         return None
     return a - b
+
+
+def _normalized_gain(uplift: float | None, baseline: float | None) -> float | None:
+    """Hake's normalized gain: g = uplift / (1 - baseline).
+    Measures proportional improvement toward perfect score.
+    Returns None if inputs are missing or baseline is already 1.0."""
+    if uplift is None or baseline is None:
+        return None
+    headroom = 1.0 - baseline
+    if headroom <= 0.0:
+        return None
+    return uplift / headroom
 
 
 def _avg(values: list[float]) -> float | None:

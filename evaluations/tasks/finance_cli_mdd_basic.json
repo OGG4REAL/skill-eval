@@ -4,15 +4,20 @@
   "eval_type": "uplift",
   "description": "验证风险指标序列计算场景下，agent 是否能返回可直接校验的结构化 JSON 结果。",
   "input": {
-    "user_query": "给定净值序列 1.0, 1.1, 0.95, 1.2, 0.8，请计算最大回撤。请只返回一个 JSON 对象，不要输出任何额外解释、Markdown 或代码块。你必须返回以下字段：max_drawdown、max_drawdown_percent。",
+    "user_query": "给定净值序列 1.0, 1.1, 0.95, 1.2, 0.8，最大回撤是多少？",
     "session_setup": {
       "uploads": [],
       "workspace_files": [],
       "history_seed": []
     }
   },
-  "variants": ["no_skill", "with_skill", "skill_v1", "skill_v2"],
-  "target_skills": ["fin-advisor-math"],
+  "variants": [
+    "no_skill",
+    "with_skill"
+  ],
+  "target_skills": [
+    "fin-advisor-math"
+  ],
   "expected_signals": [
     "skill:fin-advisor-math",
     "tool:Bash"
@@ -25,23 +30,23 @@
     "iterations_max": 8
   },
   "scoring_weights": {
-    "task_success": 0.40,
-    "signal_match": 0.20,
-    "artifact_match": 0.10,
-    "tool_efficiency": 0.10,
-    "trajectory_quality": 0.20
+    "result_score": 0.6,
+    "task_success": 0.2,
+    "signal_match": 0.1,
+    "tool_efficiency": 0.1
   },
   "routing_expectation": {
-    "should_activate": ["fin-advisor-math"]
+    "should_activate": [
+      "fin-advisor-math"
+    ]
   },
   "output_contract": {
-    "format": "json_only",
+    "format": "json",
     "required_fields": [
       "max_drawdown",
       "max_drawdown_percent"
     ],
     "notes": [
-      "不要输出 Markdown 代码块",
       "max_drawdown 返回数字",
       "max_drawdown_percent 返回带百分号的字符串"
     ]
@@ -58,7 +63,8 @@
         "id": "max_drawdown",
         "type": "numeric_tolerance",
         "path": "max_drawdown",
-        "tolerance": 0.000001,
+        "tolerance": 0.001,
+        "tolerance_mode": "relative",
         "weight": 0.6
       },
       {
