@@ -12,6 +12,21 @@ interface MarkdownRendererProps {
   content: string;
 }
 
+function sanitizeLinkHref(href?: string): string | undefined {
+  const trimmed = href?.trim();
+  if (!trimmed) return undefined;
+
+  const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed);
+  if (!hasExplicitScheme) return trimmed;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ['http:', 'https:', 'mailto:'].includes(parsed.protocol) ? trimmed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // 自定义组件样式
 const components: Components = {
   // 代码块
@@ -109,9 +124,14 @@ const components: Components = {
 
   // 链接
   a({ href, children }) {
+    const safeHref = sanitizeLinkHref(href);
+    if (!safeHref) {
+      return <span>{children}</span>;
+    }
+
     return (
       <a
-        href={href}
+        href={safeHref}
         target="_blank"
         rel="noopener noreferrer"
         style={{

@@ -29,7 +29,7 @@ from agent_system.agent.llm_client import LLMClient
 from agent_system.skills.manager import SkillManager
 from agent_system.tools import ToolRegistry, register_ui_tools, create_mcp_tools, MCPClient
 from agent_system.tools.skill_tool import SkillTool
-from agent_system.session import ensure_session_dirs
+from agent_system.session import ensure_session_dirs, sanitize_session_id
 from agent_system.config import Config
 
 
@@ -133,6 +133,15 @@ class ChatRequest(BaseModel):
     frontend: Optional[FrontendContext] = None
     session_id: Optional[str] = None
     max_iterations: Optional[int] = None
+
+
+def _is_valid_session_id(session_id: str) -> bool:
+    return (
+        bool(session_id)
+        and session_id == session_id.strip()
+        and len(session_id) <= 128
+        and sanitize_session_id(session_id) == session_id
+    )
 
 
 @dataclass
@@ -370,6 +379,9 @@ class CopilotBackend:
                 self._stats["active_sessions"] = len(self._agent_cache)
             return agent
 
+        if not _is_valid_session_id(session_id):
+            raise ValueError("Invalid session_id")
+
         with self._cache_lock:
             if session_id in self._agent_cache:
                 entry = self._agent_cache[session_id]
@@ -473,6 +485,10 @@ class CopilotBackend:
         if not session_id:
             from uuid import uuid4
             session_id = uuid4().hex
+        elif not _is_valid_session_id(session_id):
+            yield SSEEvent("error", {"message": "Invalid session_id"}).to_sse()
+            yield SSEEvent("done", {}).to_sse()
+            return
         
         # 提取用户最新消息
         user_message = ""
@@ -653,6 +669,9 @@ class CopilotBackend:
         Returns:
             是否成功清理
         """
+        if not _is_valid_session_id(session_id):
+            return False
+
         with self._cache_lock:
             if session_id in self._agent_cache:
                 del self._agent_cache[session_id]
@@ -768,7 +787,7 @@ def create_copilot_router(backend: Optional[CopilotBackend] = None) -> APIRouter
             "agents": [
                 {
                     "name": "default",
-                    "description": "Agent Studio - AI驱动的智能体测试与展示工坊"
+                    "description": "Skill Eval Studio Debug Lab - run 复盘与会话分析入口"
                 }
             ],
             "coagents": [],

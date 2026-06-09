@@ -1,4 +1,5 @@
 import asyncio
+import json
 import mimetypes
 import os
 import posixpath
@@ -7,8 +8,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path, PurePosixPath
-from typing import List, Literal, Optional
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any, List, Literal, Optional
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -17,18 +18,44 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from agent_system.config import Config
-from agent_system.session import ensure_session_dirs
+from agent_system.session import ensure_session_dirs, sanitize_session_id
 from server.copilot_adapter import create_copilot_router, get_copilot_backend
 
 
-app = FastAPI(title="CSV Agent Server", version="2.0.0")
+PRODUCT_NAME = "Skill Eval Studio"
+PRIMARY_NAVIGATION = ("Overview", "Skills", "Benchmarks", "Runs", "Comparisons", "Debug Lab")
+FIRST_CLASS_OBJECTS = ("skill", "benchmark", "variant", "run", "comparison")
+DEBUG_LAB_OBJECT_MAPPING = {
+    "session": "Debug Lab 的运行容器和上下文，不作为一等评测对象",
+    "run": "Skill Eval Studio 的单次执行详情对象",
+    "trajectory": "run 的事件日志，用于 Debug Lab 分析",
+}
+
+app = FastAPI(title=f"{PRODUCT_NAME} Server", version="2.0.0")
+
+DEFAULT_ALLOWED_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+MAX_WORKSPACE_TREE_DEPTH = int(os.getenv("WORKSPACE_TREE_MAX_DEPTH", "4"))
+MAX_WORKSPACE_TREE_NODES = int(os.getenv("WORKSPACE_TREE_MAX_NODES", "1000"))
+MAX_WORKSPACE_FILE_BYTES = int(os.getenv("WORKSPACE_FILE_PREVIEW_BYTES", str(512 * 1024)))
+
+
+def _allowed_origins() -> list[str]:
+    raw = os.getenv("SERVER_ALLOWED_ORIGINS", "")
+    if not raw.strip():
+        return list(DEFAULT_ALLOWED_ORIGINS)
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 # 挂载 CopilotKit 路由 (Phase 2)
 copilot_router = create_copilot_router(get_copilot_backend())
 app.include_router(copilot_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源（开发环境）
+    allow_origins=_allowed_origins(),
     allow_credentials=False,  # 使用通配符时不能开启 credentials
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,6 +71,19 @@ class MessageRequest(BaseModel):
     max_iterations: Optional[int] = None
 
 
+class BenchmarkRunRequest(BaseModel):
+    task_id: Optional[str] = None
+    group: Optional[str] = None
+    all: bool = False
+    variants: Optional[List[str]] = None
+    trials: int = 1
+
+
+class TaskImportRequest(BaseModel):
+    task: dict[str, Any]
+    overwrite: bool = False
+
+
 class WorkspaceNode(BaseModel):
     path: str
     name: str
@@ -51,12 +91,14 @@ class WorkspaceNode(BaseModel):
     size: Optional[int] = None
     modified: Optional[str] = None
     readonly: bool = False
+    truncated: bool = False
     children: Optional[List["WorkspaceNode"]] = None
 
 
 class WorkspaceTreeResponse(BaseModel):
     session_id: str
     roots: List[WorkspaceNode]
+    truncated: bool = False
 
 
 class WorkspaceFileResponse(BaseModel):
@@ -82,8 +124,38 @@ class WorkspaceRoot:
     kind: Literal["file", "directory"]
 
 
+def _validate_session_id(session_id: str) -> str:
+    if not session_id or session_id != session_id.strip():
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+    if len(session_id) > 128 or sanitize_session_id(session_id) != session_id:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+    return session_id
+
+
+def _validate_path_segment(value: str, field: str) -> str:
+    if not value or value != value.strip():
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    if value in {".", ".."} or "/" in value or "\\" in value or "\x00" in value:
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    if PurePosixPath(value).name != value or PureWindowsPath(value).name != value:
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    return value
+
+
+def _resolve_child_file(directory: Path, filename: str, field: str = "filename") -> Path:
+    safe_name = _validate_path_segment(filename, field)
+    root = directory.resolve()
+    target = (root / safe_name).resolve()
+    if not target.is_relative_to(root):
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    return target
+
+
 def _get_session_dirs(session_id: str):
-    base, uploads, output, log_file = ensure_session_dirs(session_id)
+    try:
+        base, uploads, output, log_file = ensure_session_dirs(_validate_session_id(session_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "base": base,
         "uploads": uploads,
@@ -128,14 +200,7 @@ def _guess_language(path: Path) -> Optional[str]:
 
 
 def _is_text_file(path: Path) -> bool:
-    mime_type, _ = mimetypes.guess_type(path.name)
-    if mime_type:
-        return mime_type.startswith("text/") or mime_type in {
-            "application/json",
-            "application/xml",
-            "application/javascript",
-        }
-    return path.suffix.lower() in {
+    if path.suffix.lower() in {
         ".md",
         ".markdown",
         ".json",
@@ -147,7 +212,17 @@ def _is_text_file(path: Path) -> bool:
         ".yml",
         ".sh",
         ".sql",
-    }
+    }:
+        return True
+
+    mime_type, _ = mimetypes.guess_type(path.name)
+    if mime_type:
+        return mime_type.startswith("text/") or mime_type in {
+            "application/json",
+            "application/xml",
+            "application/javascript",
+        }
+    return False
 
 
 def _get_workspace_roots(session_id: str) -> List[WorkspaceRoot]:
@@ -237,7 +312,13 @@ def _serialize_workspace_node(
     actual_path: Path,
     readonly: bool,
     kind: Literal["file", "directory"],
+    depth: int = 0,
+    state: Optional[dict[str, int | bool]] = None,
 ) -> WorkspaceNode:
+    if state is None:
+        state = {"count": 0, "truncated": False}
+    state["count"] = int(state["count"]) + 1
+
     if kind == "file":
         size = actual_path.stat().st_size if actual_path.exists() and actual_path.is_file() else None
         return WorkspaceNode(
@@ -247,26 +328,35 @@ def _serialize_workspace_node(
             size=size,
             modified=_to_iso_timestamp(actual_path),
             readonly=readonly,
+            truncated=False,
             children=None,
         )
 
     children: List[WorkspaceNode] = []
     if actual_path.exists() and actual_path.is_dir():
-        entries = sorted(
-            actual_path.iterdir(),
-            key=lambda item: (item.is_file(), item.name.lower()),
-        )
-        for child in entries:
-            child_logical_path = f"{logical_path}/{child.name}"
-            child_kind: Literal["file", "directory"] = "directory" if child.is_dir() else "file"
-            children.append(
-                _serialize_workspace_node(
-                    logical_path=child_logical_path,
-                    actual_path=child,
-                    readonly=readonly,
-                    kind=child_kind,
-                )
+        if depth >= MAX_WORKSPACE_TREE_DEPTH:
+            state["truncated"] = True
+        else:
+            entries = sorted(
+                actual_path.iterdir(),
+                key=lambda item: (item.is_file(), item.name.lower()),
             )
+            for child in entries:
+                if int(state["count"]) >= MAX_WORKSPACE_TREE_NODES:
+                    state["truncated"] = True
+                    break
+                child_logical_path = f"{logical_path}/{child.name}"
+                child_kind: Literal["file", "directory"] = "directory" if child.is_dir() else "file"
+                children.append(
+                    _serialize_workspace_node(
+                        logical_path=child_logical_path,
+                        actual_path=child,
+                        readonly=readonly,
+                        kind=child_kind,
+                        depth=depth + 1,
+                        state=state,
+                    )
+                )
 
     return WorkspaceNode(
         path=logical_path,
@@ -274,6 +364,7 @@ def _serialize_workspace_node(
         kind="directory",
         modified=_to_iso_timestamp(actual_path),
         readonly=readonly,
+        truncated=bool(state["truncated"]) and depth >= MAX_WORKSPACE_TREE_DEPTH,
         children=children,
     )
 
@@ -307,16 +398,18 @@ def list_sessions():
 
 @app.get("/sessions/{session_id}/workspace", response_model=WorkspaceTreeResponse)
 def get_workspace_tree(session_id: str):
+    state: dict[str, int | bool] = {"count": 0, "truncated": False}
     roots = [
         _serialize_workspace_node(
             logical_path=root.logical_path,
             actual_path=root.actual_path,
             readonly=root.readonly,
             kind=root.kind,
+            state=state,
         )
         for root in _get_workspace_roots(session_id)
     ]
-    return WorkspaceTreeResponse(session_id=session_id, roots=roots)
+    return WorkspaceTreeResponse(session_id=session_id, roots=roots, truncated=bool(state["truncated"]))
 
 
 @app.get("/sessions/{session_id}/workspace/file", response_model=WorkspaceFileResponse)
@@ -327,10 +420,12 @@ def get_workspace_file(session_id: str, path: str = Query(..., description="逻�
     if not _is_text_file(actual_path):
         raise HTTPException(status_code=415, detail="暂不支持预览二进制文件")
 
-    try:
-        content = actual_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        content = actual_path.read_text(encoding="utf-8", errors="replace")
+    with actual_path.open("rb") as handle:
+        raw = handle.read(MAX_WORKSPACE_FILE_BYTES + 1)
+    truncated = len(raw) > MAX_WORKSPACE_FILE_BYTES
+    if truncated:
+        raw = raw[:MAX_WORKSPACE_FILE_BYTES]
+    content = raw.decode("utf-8", errors="replace")
 
     mime_type = mimetypes.guess_type(actual_path.name)[0] or "text/plain"
     return WorkspaceFileResponse(
@@ -342,7 +437,7 @@ def get_workspace_file(session_id: str, path: str = Query(..., description="逻�
         content=content,
         language=_guess_language(actual_path),
         mime_type=mime_type,
-        truncated=False,
+        truncated=truncated,
     )
 
 
@@ -351,10 +446,11 @@ async def upload_files(session_id: str, files: List[UploadFile] = File(...)):
     dirs = _get_session_dirs(session_id)
     saved_files = []
     for upload in files:
-        destination = dirs["uploads"] / upload.filename
+        filename = _validate_path_segment(upload.filename or "", "filename")
+        destination = _resolve_child_file(dirs["uploads"], filename)
         with destination.open("wb") as buffer:
             shutil.copyfileobj(upload.file, buffer)
-        saved_files.append(upload.filename)
+        saved_files.append(filename)
     return {"uploaded": saved_files}
 
 
@@ -367,7 +463,7 @@ def list_uploaded_files(session_id: str):
 @app.get("/sessions/{session_id}/files/{filename}")
 def download_uploaded_file(session_id: str, filename: str):
     dirs = _get_session_dirs(session_id)
-    file_path = dirs["uploads"] / filename
+    file_path = _resolve_child_file(dirs["uploads"], filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(file_path)
@@ -376,7 +472,7 @@ def download_uploaded_file(session_id: str, filename: str):
 @app.delete("/sessions/{session_id}/files/{filename}")
 def delete_uploaded_file(session_id: str, filename: str):
     dirs = _get_session_dirs(session_id)
-    file_path = dirs["uploads"] / filename
+    file_path = _resolve_child_file(dirs["uploads"], filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
     file_path.unlink()
@@ -451,26 +547,105 @@ def list_outputs(session_id: str):
 @app.get("/sessions/{session_id}/outputs/{filename}")
 def download_output_file(session_id: str, filename: str):
     dirs = _get_session_dirs(session_id)
-    file_path = dirs["output"] / filename
+    file_path = _resolve_child_file(dirs["output"], filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(file_path)
 
 
 # ============================================================================
-# Run / Trajectory / Eval 查询接口
+# Skill Eval Studio 底层 run / trajectory / eval 查询接口
 # ============================================================================
 
+from agent_system.evaluation.benchmark_runner import BenchmarkRunner
+from agent_system.evaluation.benchmark_store import BenchmarkStore
 from agent_system.evaluation.registry import RunsRegistry
+from agent_system.evaluation.skill_comparator import SkillComparator
+from agent_system.evaluation.task_loader import TaskLoader, TaskLoadError
 
 
 def _get_evaluations_dir():
     return Config.WORKSPACE_ROOT / "evaluations"
 
 
+def _get_benchmark_store() -> BenchmarkStore:
+    return BenchmarkStore(_get_evaluations_dir() / "benchmarks" / "runs")
+
+
+def _get_skill_comparator(store: BenchmarkStore) -> SkillComparator:
+    return SkillComparator(store=store, workspace_root=Config.WORKSPACE_ROOT)
+
+
+def _empty_comparison_summary(source: str = "all_benchmarks") -> dict[str, Any]:
+    return SkillComparator.empty_comparison_response(source)["summary"]
+
+
+def _comparison_response_or_empty(
+    comparator: SkillComparator,
+    benchmark_id: str | None = None,
+) -> dict[str, Any]:
+    source = benchmark_id or "all_benchmarks"
+    try:
+        return comparator.build_comparison_response(benchmark_id=benchmark_id)
+    except ValueError:
+        return SkillComparator.empty_comparison_response(source)
+
+
+def _validate_benchmark_run_request(request: BenchmarkRunRequest) -> None:
+    selected = sum([
+        bool(request.task_id),
+        bool(request.group),
+        bool(request.all),
+    ])
+    if selected != 1:
+        raise HTTPException(
+            status_code=400,
+            detail="task_id、group、all 必须且只能指定一个",
+        )
+    if request.task_id:
+        _validate_path_segment(request.task_id, "task_id")
+    if request.group:
+        _validate_path_segment(request.group, "group")
+    if request.trials < 1:
+        raise HTTPException(status_code=400, detail="trials 必须大于等于 1")
+    if request.variants is not None:
+        if not request.variants:
+            raise HTTPException(status_code=400, detail="variants 不能为空数组")
+        for variant_id in request.variants:
+            _validate_path_segment(variant_id, "variant_id")
+
+
+def _benchmark_run_response(result: dict[str, Any]) -> dict[str, Any]:
+    benchmark = BenchmarkStore.build_benchmark_list_item(result)
+    return {
+        "benchmark_id": result.get("benchmark_id"),
+        "summary": benchmark["summary"],
+        "benchmark": benchmark,
+    }
+
+
+def _task_import_summary(task: dict[str, Any]) -> dict[str, Any]:
+    verifier = task.get("verifier")
+    return {
+        "task_id": task.get("task_id"),
+        "group": task.get("group"),
+        "eval_type": task.get("eval_type"),
+        "target_skills": task.get("target_skills", []),
+        "variants": task.get("variants", []),
+        "verifier_configured": isinstance(verifier, dict) and bool(verifier),
+    }
+
+
+def _validate_imported_task(task: dict[str, Any]) -> None:
+    validator = TaskLoader.__new__(TaskLoader)
+    validator.validate_task(task, "import")
+    TaskLoader._fill_defaults(task)
+
+
 @app.get("/sessions/{session_id}/runs")
 def list_session_runs(session_id: str):
     """返回当前 session 的 run 列表"""
+    _validate_session_id(session_id)
     runs_dir = Config.SESSIONS_ROOT / session_id / "runs"
     if not runs_dir.exists():
         return []
@@ -490,6 +665,8 @@ def list_session_runs(session_id: str):
 @app.get("/sessions/{session_id}/runs/{run_id}")
 def get_session_run(session_id: str, run_id: str):
     """返回 run.json"""
+    _validate_session_id(session_id)
+    _validate_path_segment(run_id, "run_id")
     run_json = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "run.json"
     if not run_json.exists():
         raise HTTPException(status_code=404, detail="run 不存在")
@@ -501,6 +678,8 @@ def get_session_run(session_id: str, run_id: str):
 @app.get("/sessions/{session_id}/runs/{run_id}/trajectory")
 def get_run_trajectory(session_id: str, run_id: str):
     """返回解析后的 trajectory 事件数组"""
+    _validate_session_id(session_id)
+    _validate_path_segment(run_id, "run_id")
     traj_path = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "trajectory.jsonl"
     if not traj_path.exists():
         raise HTTPException(status_code=404, detail="trajectory 不存在")
@@ -520,6 +699,8 @@ def get_run_trajectory(session_id: str, run_id: str):
 @app.get("/sessions/{session_id}/runs/{run_id}/artifacts")
 def get_run_artifacts(session_id: str, run_id: str):
     """返回 artifacts.json"""
+    _validate_session_id(session_id)
+    _validate_path_segment(run_id, "run_id")
     artifacts_path = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "artifacts.json"
     if not artifacts_path.exists():
         raise HTTPException(status_code=404, detail="artifacts 不存在")
@@ -531,6 +712,8 @@ def get_run_artifacts(session_id: str, run_id: str):
 @app.get("/sessions/{session_id}/runs/{run_id}/eval")
 def get_run_eval(session_id: str, run_id: str):
     """返回 eval.json"""
+    _validate_session_id(session_id)
+    _validate_path_segment(run_id, "run_id")
     eval_json = Config.SESSIONS_ROOT / session_id / "runs" / run_id / "eval.json"
     if not eval_json.exists():
         raise HTTPException(status_code=404, detail="eval 不存在")
@@ -539,11 +722,148 @@ def get_run_eval(session_id: str, run_id: str):
         return _json.load(f)
 
 
+@app.get("/evaluation/overview")
+def get_evaluation_overview():
+    """返回 Evaluation Overview 第一屏 contract"""
+    store = _get_benchmark_store()
+    comparator = _get_skill_comparator(store)
+    comparison_response = _comparison_response_or_empty(comparator)
+    return store.build_overview(
+        comparison_summary=comparison_response["summary"],
+    )
+
+
+@app.get("/evaluation/benchmarks")
+def list_evaluation_benchmarks():
+    """返回 benchmark 列表 contract"""
+    store = _get_benchmark_store()
+    comparator = _get_skill_comparator(store)
+    results = []
+    for item in store.list_benchmark_contracts():
+        try:
+            comparison = comparator.build_comparison_response(
+                benchmark_id=item["benchmark_id"]
+            )
+            comparison_summary = comparison["summary"]
+        except Exception:
+            comparison_summary = _empty_comparison_summary(item["benchmark_id"])
+        results.append({
+            **item,
+            "comparison_summary": comparison_summary,
+        })
+    return results
+
+
+@app.post("/evaluation/benchmarks/run")
+def run_evaluation_benchmark(request: BenchmarkRunRequest):
+    """同步运行 benchmark，Phase 1 不引入 job/queue"""
+    _validate_benchmark_run_request(request)
+    runner = BenchmarkRunner(workspace_root=Config.WORKSPACE_ROOT)
+    try:
+        if request.task_id:
+            result = runner.run_task(
+                request.task_id,
+                variants=request.variants,
+                trials=request.trials,
+            )
+        elif request.group:
+            result = runner.run_group(
+                request.group,
+                variants=request.variants,
+                trials=request.trials,
+            )
+        else:
+            result = runner.run_all(
+                variants=request.variants,
+                trials=request.trials,
+            )
+    except (TaskLoadError, ValueError, KeyError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"benchmark 执行失败: {e}") from e
+    return _benchmark_run_response(result)
+
+
+@app.get("/evaluation/benchmarks/{benchmark_id}")
+def get_evaluation_benchmark(benchmark_id: str):
+    """返回单个 benchmark detail contract"""
+    _validate_path_segment(benchmark_id, "benchmark_id")
+    store = _get_benchmark_store()
+    comparator = _get_skill_comparator(store)
+    try:
+        comparison = comparator.build_comparison_response(benchmark_id=benchmark_id)
+        return store.load_benchmark_contract(
+            benchmark_id,
+            comparison=comparison,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail="benchmark 不存在") from e
+
+
+@app.get("/evaluation/skills/{skill}/summary")
+def get_evaluation_skill_summary(skill: str):
+    """返回 skill 维度汇总；未知 skill 返回 200 空态"""
+    _validate_path_segment(skill, "skill")
+    store = _get_benchmark_store()
+    comparator = _get_skill_comparator(store)
+    return comparator.build_skill_summary_contract(skill)
+
+
+@app.get("/evaluation/comparisons")
+def get_evaluation_comparisons(
+    benchmark_id: Optional[str] = Query(None),
+    baseline_variant: str = Query("no_skill"),
+    target_variant: str = Query("with_skill"),
+):
+    """返回 comparison 页面 contract，默认全量 compare_all"""
+    if benchmark_id:
+        _validate_path_segment(benchmark_id, "benchmark_id")
+    _validate_path_segment(baseline_variant, "baseline_variant")
+    _validate_path_segment(target_variant, "target_variant")
+    store = _get_benchmark_store()
+    comparator = _get_skill_comparator(store)
+    try:
+        return comparator.build_comparison_response(
+            benchmark_id=benchmark_id,
+            baseline_variant=baseline_variant,
+            target_variant=target_variant,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail="benchmark 不存在") from e
+    except ValueError:
+        return SkillComparator.empty_comparison_response(
+            benchmark_id or "all_benchmarks"
+        )
+
+
 @app.get("/evaluation/runs")
 def list_evaluation_runs(limit: int = Query(50, description="返回条数")):
     """返回跨 session 的最近运行列表"""
     registry = RunsRegistry(_get_evaluations_dir())
     return registry.list_runs(limit=limit)
+
+
+@app.post("/evaluation/tasks/import")
+def import_evaluation_task(request: TaskImportRequest):
+    task = dict(request.task)
+    try:
+        _validate_imported_task(task)
+    except TaskLoadError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    task_id = task["task_id"]
+    _validate_path_segment(task_id, "task_id")
+    tasks_dir = _get_evaluations_dir() / "tasks"
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    task_path = tasks_dir / f"{task_id}.json"
+    if task_path.exists() and not request.overwrite:
+        raise HTTPException(status_code=409, detail=f"task_id '{task_id}' already exists")
+
+    task_path.write_text(
+        json.dumps(task, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return _task_import_summary(task)
 
 
 @app.get("/evaluation/tasks")
@@ -556,5 +876,10 @@ def list_evaluation_tasks():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("server.app:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run(
+        "server.app:app",
+        host=os.getenv("SERVER_HOST", "127.0.0.1"),
+        port=int(os.getenv("SERVER_PORT", "8001")),
+        reload=True,
+    )
 

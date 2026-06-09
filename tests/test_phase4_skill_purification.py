@@ -116,7 +116,7 @@ class TestCSVDataSummarizerWorkflow(unittest.TestCase):
     
     def test_execution_strategy_section_exists(self):
         """测试是否包含执行策略部分"""
-        self.assertIn('执行策略', self.skill_content)
+        self.assertIn('Execution Flow', self.skill_content)
     
     def test_read_write_bash_workflow(self):
         """测试是否包含 Read→Write→Bash 工作流"""
@@ -126,18 +126,18 @@ class TestCSVDataSummarizerWorkflow(unittest.TestCase):
     
     def test_reference_code_explanation(self):
         """测试是否说明参考代码的定位"""
-        self.assertIn('参考代码', self.skill_content)
-        self.assertIn('analyze.py', self.skill_content)
+        self.assertIn('Write("temp/analysis.py"', self.skill_content)
+        self.assertIn('Bash("python temp/analysis.py")', self.skill_content)
     
     def test_anti_patterns_listed(self):
         """测试是否列出反模式"""
-        self.assertIn('反模式', self.skill_content)
+        self.assertIn('What NOT to do', self.skill_content)
         self.assertIn('python -c', self.skill_content)
     
     def test_deprecated_markers_noted(self):
         """测试是否标注旧协议已废弃"""
-        self.assertIn('ANALYSIS_RESULT_START', self.skill_content)
-        self.assertIn('deprecated', self.skill_content.lower())
+        self.assertNotIn('ANALYSIS_RESULT_START', self.skill_content)
+        self.assertNotIn('ANALYSIS_RESULT_END', self.skill_content)
     
     def test_data_structure_not_charts(self):
         """测试输出结构说明使用 data 而非 charts"""
@@ -149,7 +149,9 @@ class TestCSVDataSummarizerWorkflow(unittest.TestCase):
     
     def test_computation_only_header(self):
         """测试头部声明仅负责计算"""
-        self.assertIn('COMPUTATION ONLY', self.skill_content)
+        self.assertIn('UI Tools', self.skill_content)
+        self.assertIn('render_chart', self.skill_content)
+        self.assertIn('render_table', self.skill_content)
 
 
 class TestAnalyzePyRefactoring(unittest.TestCase):

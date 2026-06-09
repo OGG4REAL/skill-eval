@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skill Eval Studio Phase 1 - Eval API Contract 执行方案</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --text: #1f2933;
+      --muted: #667085;
+      --line: #d9dee7;
+      --line-strong: #b9c2d0;
+      --green: #157347;
+      --green-bg: #e8f5ee;
+      --amber: #9a6700;
+      --amber-bg: #fff4d6;
+      --red: #b42318;
+      --red-bg: #ffebe9;
+      --blue: #1d4ed8;
+      --blue-bg: #eaf1ff;
+      --code-bg: #f0f2f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+    h1, h2, h3 { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 24px; line-height: 1.25; }
+    h2 { font-size: 17px; margin-bottom: 10px; }
+    h3 { font-size: 14px; margin-bottom: 6px; }
+    p { margin: 0 0 8px; }
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--code-bg);
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 12px;
+    }
+    pre {
+      overflow: auto;
+      margin: 8px 0 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre;
+    }
+    ul, ol { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 4px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+    }
+    th, td {
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      width: 18%;
+      background: #f3f5f8;
+      color: #344054;
+      font-weight: 650;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: #475467;
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .badge.green { color: var(--green); background: var(--green-bg); border-color: #badbcc; }
+    .badge.amber { color: var(--amber); background: var(--amber-bg); border-color: #f6d889; }
+    .badge.red { color: var(--red); background: var(--red-bg); border-color: #f2b8b5; }
+    .badge.blue { color: var(--blue); background: var(--blue-bg); border-color: #bfd0ff; }
+    .grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px;
+    }
+    .verdict {
+      border-color: #a6c8ff;
+      background: #f6f9ff;
+    }
+    .callout {
+      border-left: 4px solid var(--blue);
+      background: #f7fbff;
+      padding: 10px 12px;
+      margin-top: 8px;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .flow > div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 10px;
+      min-height: 92px;
+      position: relative;
+    }
+    .flow > div::after {
+      content: ">";
+      position: absolute;
+      top: 34px;
+      right: -8px;
+      color: var(--line-strong);
+      font-weight: 700;
+    }
+    .flow > div:last-child::after { content: ""; }
+    .option {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+      min-height: 100%;
+    }
+    .option-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: start;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+    .two-col-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      margin-top: 8px;
+    }
+    .check {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 8px;
+      align-items: start;
+      color: #344054;
+    }
+    .box {
+      width: 15px;
+      height: 15px;
+      margin-top: 3px;
+      border: 1px solid var(--line-strong);
+      border-radius: 3px;
+      background: #fff;
+    }
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 10px 12px;
+      margin-top: 10px;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: 650;
+    }
+    .nowrap { white-space: nowrap; }
+    @media (max-width: 900px) {
+      header { grid-template-columns: 1fr; }
+      .badge-row { justify-content: flex-start; }
+      .cols-2, .cols-3, .flow, .checklist, .two-col-list { grid-template-columns: 1fr; }
+      .flow > div::after { content: ""; }
+      th { width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Skill Eval Studio Phase 1 - Eval API Contract 执行方案</h1>
+        <div class="meta">生成日期：2026-05-18 · 更新日期：2026-05-19 · 工作区：D:\csv-data-summarizer · 状态：方案 B 已实施，Phase 1 API contract 已验证。</div>
+      </div>
+      <div class="badge-row">
+        <span class="badge blue">Phase 1</span>
+        <span class="badge green">Implemented</span>
+        <span class="badge green">Verified</span>
+        <span class="badge">No DB</span>
+        <span class="badge">No queue</span>
+        <span class="badge green">B locked</span>
+      </div>
+    </header>
+
+    <section class="panel verdict">
+      <h2>实施结论</h2>
+      <p><strong>已按方案 B 落地：在现有 <code>BenchmarkStore</code> 和 <code>SkillComparator</code> 上补 summary/contract 序列化能力，<code>server/app.py</code> 只加薄路由，<code>frontend/src/lib/api.ts</code> 只加类型化调用。</strong></p>
+      <div class="callout">
+        结果：新增 6 个 <code>/evaluation/*</code> API、前端 typed API client 和 API smoke test。下一步是让 Evaluation 页面消费这些 contract；当前仍不引入 DB、queue 或异步 job。
+      </div>
+    </section>
+
+    <section class="grid cols-3">
+      <div class="panel">
+        <h2>成功标准</h2>
+        <ul>
+          <li>新增 6 个 <code>/evaluation/*</code> API，并返回稳定 contract。</li>
+          <li><code>overview</code>、<code>benchmark</code>、<code>comparison</code> 都有 UI 可直接消费的 <code>summary</code>。</li>
+          <li>前端 API 封装只消费 summary/detail contract，不读 benchmark 原始 JSON 文件。</li>
+          <li>现有 evaluation 测试通过。</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h2>非目标</h2>
+        <ul>
+          <li>不引入数据库。</li>
+          <li>不加后台队列或 worker。</li>
+          <li>不重写 <code>BenchmarkRunner</code>。</li>
+          <li>不在 Phase 1 重做前端页面骨架。</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h2>已定风险处理</h2>
+        <ul>
+          <li><code>POST /evaluation/benchmarks/run</code> 允许同步阻塞执行；Phase 1 不加队列和后台状态轮询。</li>
+          <li><code>GET /evaluation/comparisons</code> 默认使用全量 <code>compare_all</code>，支持 <code>benchmark_id</code> 做单次 benchmark 对比。</li>
+          <li><code>GET /evaluation/benchmarks/{id}</code> 不透传完整 raw <code>cases</code>，只暴露 matrix、failed case summary、run refs。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:12px;">
+      <h2>当前代码证据</h2>
+      <table>
+        <tbody>
+          <tr>
+            <th>已有后端路由</th>
+            <td><code>server/app.py</code> 已新增 <code>GET /evaluation/overview</code>、<code>GET /evaluation/benchmarks</code>、<code>GET /evaluation/benchmarks/{id}</code>、<code>GET /evaluation/skills/{skill}/summary</code>、<code>GET /evaluation/comparisons</code>、<code>POST /evaluation/benchmarks/run</code>。</td>
+          </tr>
+          <tr>
+            <th>前端 API 封装</th>
+            <td><code>frontend/src/types.ts</code> 已新增 evaluation contract 类型；<code>frontend/src/lib/api.ts</code> 已新增 overview、benchmark、skill summary、comparison、run benchmark typed API 调用。</td>
+          </tr>
+          <tr>
+            <th>BenchmarkStore 能力</th>
+            <td><code>benchmark_store.py</code> 已新增 list/detail/overview contract helper，benchmark list 过滤 <code>_path</code>，benchmark detail 不透传完整 raw <code>cases</code>。</td>
+          </tr>
+          <tr>
+            <th>SkillComparator 能力</th>
+            <td><code>skill_comparator.py</code> 已新增 comparison response、comparison summary、skill summary contract helper；原 <code>compare_*</code> 返回保持兼容。</td>
+          </tr>
+          <tr>
+            <th>BenchmarkRunner 能力</th>
+            <td><code>benchmark_runner.py</code> 保持同步执行模型；<code>run_all</code> 支持传入 variant 过滤，用于 <code>POST /evaluation/benchmarks/run</code> 的最小参数适配。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" style="margin-top:12px;">
+      <h2>验证记录</h2>
+      <table>
+        <tbody>
+          <tr>
+            <th>后端 contract</th>
+            <td><code>python -m pytest tests/test_benchmark_store.py tests/test_skill_comparator.py tests/test_evaluation_api_contract.py -q</code> 通过。</td>
+          </tr>
+          <tr>
+            <th>前端静态验证</th>
+            <td><code>cd frontend &amp;&amp; npm run lint</code>、<code>cd frontend &amp;&amp; npm run build</code> 通过；仅保留既有 Vite 体积和 polyfill 警告。</td>
+          </tr>
+          <tr>
+            <th>浏览器 smoke</th>
+            <td>Playwright 打开隔离前端，console error 为 0；页面上下文可访问 <code>/evaluation/overview</code>、<code>/evaluation/benchmarks</code>、benchmark detail、comparison 和 unknown skill summary。</td>
+          </tr>
+          <tr>
+            <th>运行注意</th>
+            <td>已启动的旧 8001 后端不会自动加载新增路由；部署或本地联调前需要重启后端进程。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" style="margin-top:12px;">
+      <h2>数据流</h2>
+      <div class="flow">
+        <div>
+          <h3>Frontend</h3>
+          <p>新增 typed API client。</p>
+          <code>frontend/src/lib/api.ts</code>
+        </div>
+        <div>
+          <h3>FastAPI</h3>
+          <p>只做参数校验、错误码、调用 contract helper。</p>
+          <code>server/app.py</code>
+        </div>
+        <div>
+          <h3>Evaluation Core</h3>
+          <p>Store/Comparator/Runner 提供可复用 summary。</p>
+          <code>agent_system/evaluation/*</code>
+        </div>
+        <div>
+          <h3>Local JSON</h3>
+          <p>继续读写现有 benchmark/runs JSON。</p>
+          <code>evaluations/benchmarks/runs</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid cols-3">
+      <div class="panel option">
+        <div class="option-head">
+          <h2>方案 A：路由内拼装</h2>
+          <span class="badge amber">不采用</span>
+        </div>
+        <div class="two-col-list">
+          <div>
+            <h3>优点</h3>
+            <ul>
+              <li>改动最少。</li>
+              <li>不新增模块。</li>
+              <li>短期能很快打通 API。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>缺点</h3>
+            <ul>
+              <li><code>server/app.py</code> 会继续膨胀。</li>
+              <li>summary 逻辑难单测。</li>
+              <li>后续 Phase 3/4 容易复制前端拼装逻辑。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel option">
+        <div class="option-head">
+          <h2>方案 B：Store/Comparator contract helper</h2>
+          <span class="badge green">已采纳</span>
+        </div>
+        <div class="two-col-list">
+          <div>
+            <h3>优点</h3>
+            <ul>
+              <li>不引入新架构。</li>
+              <li>summary 贴近数据来源。</li>
+              <li>后端路由保持薄。</li>
+              <li>能直接扩展现有 evaluation 单测。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>约束</h3>
+            <ul>
+              <li>core 模块里允许出现少量 API contract 字段。</li>
+              <li>必须避免把 raw JSON 全部透出。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel option">
+        <div class="option-head">
+          <h2>方案 C：新增 API service 层</h2>
+          <span class="badge amber">不采用</span>
+        </div>
+        <div class="two-col-list">
+          <div>
+            <h3>优点</h3>
+            <ul>
+              <li>contract 和 core 计算分离。</li>
+              <li>后续 schema version 更好放置。</li>
+              <li>更适合 Phase 7 hardening。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>缺点</h3>
+            <ul>
+              <li>新增文件和概念。</li>
+              <li>Phase 1 规模偏重。</li>
+              <li>容易提前平台化。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:12px;">
+      <h2>已定 API Contract</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>用途</th>
+            <th>核心 response</th>
+            <th>已定处理</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="nowrap"><code>GET /evaluation/overview</code></td>
+            <td>Overview 第一屏，不让前端临时拼指标。</td>
+            <td><code>summary</code>、<code>latest_benchmarks</code>、<code>comparison_summary</code>、<code>warnings</code>。</td>
+            <td>缺 benchmark 时返回 200 空态，<code>summary</code> 内计数为 0，<code>warnings</code> 可提示暂无数据。</td>
+          </tr>
+          <tr>
+            <td class="nowrap"><code>GET /evaluation/benchmarks</code></td>
+            <td>Benchmark 列表。</td>
+            <td>每项包含 <code>benchmark_id</code>、<code>started_at</code>、<code>scope</code>、<code>summary</code>、<code>comparison_summary</code>。</td>
+            <td>不返回 <code>_path</code> 给前端，避免前端绑定本地文件路径。</td>
+          </tr>
+          <tr>
+            <td class="nowrap"><code>GET /evaluation/benchmarks/{id}</code></td>
+            <td>Benchmark detail 和 Phase 3 matrix 数据入口。</td>
+            <td><code>summary</code>、<code>matrix</code>、<code>failed_cases</code>、<code>run_refs</code>、<code>comparison</code>。</td>
+            <td>只暴露筛过的 case summary，不透传完整 case；错误信息保留必要摘要和 run reference。</td>
+          </tr>
+          <tr>
+            <td class="nowrap"><code>GET /evaluation/skills/{skill}/summary</code></td>
+            <td>Skill 维度汇总。</td>
+            <td><code>summary</code>、<code>tasks</code>、<code>recent_benchmarks</code>、<code>warnings</code>。</td>
+            <td>未知 skill 返回 200 空态，便于 UI 搜索和 filter。</td>
+          </tr>
+          <tr>
+            <td class="nowrap"><code>GET /evaluation/comparisons</code></td>
+            <td>Comparison 页面数据。</td>
+            <td><code>summary</code>、<code>by_skill</code>、<code>by_task</code>、<code>source</code>、<code>generated_at</code>。</td>
+            <td>默认 <code>source=all_benchmarks</code>；支持 <code>?benchmark_id=...</code> 做单次 benchmark 对比。</td>
+          </tr>
+          <tr>
+            <td class="nowrap"><code>POST /evaluation/benchmarks/run</code></td>
+            <td>同步触发 runner，保持无队列。</td>
+            <td>请求完成后返回新 benchmark 的 <code>summary</code> 和 <code>benchmark_id</code>。</td>
+            <td>接受同步长耗时请求；请求完成后直接返回 benchmark contract。Phase 1 不做异步 job。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <details>
+        <summary>已定 TypeScript response 形状</summary>
+<pre><code>interface EvaluationOverviewResponse {
+  summary: {
+    benchmark_count: number;
+    task_count: number;
+    skill_count: number;
+    latest_benchmark_id: string | null;
+    latest_started_at: string | null;
+    cases_total: number;
+    cases_failed: number;
+    positive_comparisons: number;
+    negative_comparisons: number;
+  };
+  latest_benchmarks: EvaluationBenchmarkListItem[];
+  comparison_summary: EvaluationComparisonSummary;
+  warnings: string[];
+}
+
+interface EvaluationBenchmarkListItem {
+  benchmark_id: string;
+  started_at: string | null;
+  finished_at: string | null;
+  scope: {
+    task_id: string | null;
+    group: string | null;
+    all: boolean;
+    variants: string[];
+    trials: number;
+  };
+  summary: {
+    cases_total: number;
+    cases_succeeded: number;
+    cases_failed: number;
+    pass_rate: number | null;
+    task_count: number;
+    variant_count: number;
+  };
+  comparison_summary?: EvaluationComparisonSummary;
+}
+
+interface EvaluationComparisonSummary {
+  source: string;
+  generated_at: string | null;
+  baseline_variant: string;
+  target_variant: string;
+  tasks_compared: number;
+  skills_compared: number;
+  positive_tasks: number;
+  negative_tasks: number;
+  neutral_tasks: number;
+  avg_result_score_uplift: number | null;
+  avg_normalized_gain: number | null;
+}</code></pre>
+      </details>
+
+      <details>
+        <summary><code>POST /evaluation/benchmarks/run</code> 请求形状</summary>
+<pre><code>{
+  "task_id": "csv_analysis_dirty_headers",
+  "group": null,
+  "all": false,
+  "variants": ["no_skill", "with_skill"],
+  "trials": 1
+}</code></pre>
+        <p class="small">约束：<code>task_id</code>、<code>group</code>、<code>all</code> 三选一；<code>trials</code> 默认 1；Phase 1 不做后台状态轮询。</p>
+      </details>
+    </section>
+
+    <section class="panel" style="margin-top:12px;">
+      <h2>实施切片</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>步骤</th>
+            <th>修改点</th>
+            <th>验证项</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. 定义 summary helper</td>
+            <td>在 <code>BenchmarkStore</code> 增加 list/detail summary 输出，过滤 <code>_path</code> 和 raw case。</td>
+            <td><code>pytest tests/test_benchmark_store.py</code></td>
+          </tr>
+          <tr>
+            <td>2. 定义 comparison summary</td>
+            <td>在 <code>SkillComparator</code> 增加 summary 生成，保留原 <code>compare_*</code> 返回兼容。</td>
+            <td><code>pytest tests/test_skill_comparator.py</code></td>
+          </tr>
+          <tr>
+            <td>3. 加 FastAPI route</td>
+            <td><code>server/app.py</code> 新增 6 个路由，请求参数用 Pydantic，id/skill 用现有 path segment 校验。</td>
+            <td>用 TestClient 或本地 curl 做 200/404/400 smoke。</td>
+          </tr>
+          <tr>
+            <td>4. 加前端 API contract</td>
+            <td><code>frontend/src/lib/api.ts</code> 新增类型和函数，不改页面结构。</td>
+            <td>TypeScript 构建或最小静态检查。</td>
+          </tr>
+          <tr>
+            <td>5. 最终验证</td>
+            <td>跑 evaluation contract 测试、前端静态验证和浏览器 smoke。</td>
+            <td><code>pytest tests/test_benchmark_store.py tests/test_skill_comparator.py tests/test_evaluation_api_contract.py</code><br /><code>npm run lint</code><br /><code>npm run build</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="grid cols-2">
+      <div class="panel">
+        <h2>已定决策清单</h2>
+        <div class="checklist">
+          <div class="check"><span class="box"></span><span><strong>Run endpoint。</strong> 允许同步阻塞执行；不引入 queue、job id、后台 worker。</span></div>
+          <div class="check"><span class="box"></span><span><strong>Comparison 默认范围。</strong> 默认全量 <code>compare_all</code>；支持 <code>benchmark_id</code> 查询单次 benchmark 对比。</span></div>
+          <div class="check"><span class="box"></span><span><strong>Benchmark detail 信息边界。</strong> 暴露 matrix、failed case summary、run refs；不透传完整 raw JSON。</span></div>
+          <div class="check"><span class="box"></span><span><strong>未知 skill 返回语义。</strong> 返回 200 空态，而不是 404。</span></div>
+          <div class="check"><span class="box"></span><span><strong>API contract 测试。</strong> 在不扩大范围的前提下补小型 smoke test；仍以现有 evaluation 测试通过为主验收。</span></div>
+          <div class="check"><span class="box"></span><span><strong>summary 字段命名。</strong> 按本文 TypeScript contract 固定，后续 Phase 2/3 直接依赖。</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>明确不做的事</h2>
+        <ul>
+          <li>不把 <code>evaluations/benchmarks/runs/*.json</code> 文件路径返回给前端。</li>
+          <li>不让 <code>frontend</code> 自己推导 task count、pass rate、uplift。</li>
+          <li>不为了未来 regression 先做通用查询语言。</li>
+          <li>不把 <code>BenchmarkRunner</code> 改成异步任务系统。</li>
+          <li>不在 Phase 1 改 <code>EvaluationPanel</code> 的 UI 形态。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:12px;">
+      <h2>验收映射</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>验收标准</th>
+            <th>执行对应</th>
+            <th>通过信号</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>前端不直接读原始 benchmark JSON。</td>
+            <td>前端只新增 <code>api.ts</code> typed functions，所有 benchmark/comparison 数据从 API contract 来。</td>
+            <td>前端代码没有读取 <code>evaluations/benchmarks/runs</code> 或依赖 <code>cases</code> 原始结构。</td>
+          </tr>
+          <tr>
+            <td>overview、benchmark、comparison response 有 summary。</td>
+            <td>所有新增 route response 顶层或 item 内都有 <code>summary</code>。</td>
+            <td>API smoke 中检查 <code>summary</code> key 和关键字段。</td>
+          </tr>
+          <tr>
+            <td>现有 evaluation 测试通过。</td>
+            <td>不改 runner 执行逻辑，只补 summary 序列化；保持 comparator 原返回兼容。</td>
+            <td>benchmark store、skill comparator 和 API contract smoke 测试通过。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

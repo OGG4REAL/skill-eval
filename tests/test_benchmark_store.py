@@ -173,3 +173,67 @@ class TestCollectAggregates:
         rows = store.collect_aggregates(benchmark_ids=["b2"])
         assert len(rows) == 2
         assert all(r["benchmark_id"] == "b2" for r in rows)
+
+
+class TestContractHelpers:
+    def test_list_contract_filters_path_and_enriches_summary(self, tmp_path):
+        _write_bench(tmp_path, _make_benchmark("bench_contract"))
+        store = BenchmarkStore(tmp_path)
+
+        item = store.list_benchmark_contracts()[0]
+
+        assert "_path" not in item
+        assert item["benchmark_id"] == "bench_contract"
+        assert item["summary"]["pass_rate"] == pytest.approx(1.0)
+        assert item["summary"]["task_count"] == 1
+        assert item["summary"]["variant_count"] == 2
+
+    def test_detail_contract_omits_raw_cases_and_keeps_run_refs(self, tmp_path):
+        bench = _make_benchmark("bench_detail")
+        bench["cases"][1]["status"] = "failed"
+        bench["cases"][1]["run_status"] = "failed"
+        bench["cases"][1]["error"] = "bad output"
+        bench["cases"][1]["score"] = {
+            "weighted_score": 0.2,
+            "result_score": 0.0,
+            "result_pass": False,
+            "result_detail": {"failure_reason": "missing field"},
+            "notes": ["result 验证失败"],
+        }
+        _write_bench(tmp_path, bench)
+        store = BenchmarkStore(tmp_path)
+
+        detail = store.load_benchmark_contract("bench_detail")
+
+        assert "cases" not in detail
+        assert len(detail["matrix"]) == 2
+        assert len(detail["run_refs"]) == 2
+        assert len(detail["failed_cases"]) == 1
+        assert detail["failed_cases"][0]["failure_reason"] == "missing field"
+        assert detail["failed_cases"][0]["session_id"] == "sess-b"
+
+    def test_empty_overview_returns_empty_contract(self, tmp_path):
+        store = BenchmarkStore(tmp_path / "missing")
+
+        overview = store.build_overview()
+
+        assert overview["summary"]["benchmark_count"] == 0
+        assert overview["summary"]["task_count"] == 0
+        assert overview["summary"]["skill_count"] == 0
+        assert overview["summary"]["latest_benchmark_id"] is None
+        assert overview["latest_benchmarks"] == []
+        assert overview["warnings"] == ["暂无 benchmark 数据"]
+
+    def test_recent_benchmarks_for_skill_uses_case_snapshot(self, tmp_path):
+        bench = _make_benchmark("bench_skill")
+        bench["cases"][1]["variant"] = {
+            "enabled_skills": ["csv-data-summarizer"],
+            "pre_injected_skills": ["csv-data-summarizer"],
+        }
+        _write_bench(tmp_path, bench)
+        store = BenchmarkStore(tmp_path)
+
+        result = store.list_recent_benchmarks_for_skill("csv-data-summarizer")
+
+        assert len(result) == 1
+        assert result[0]["benchmark_id"] == "bench_skill"

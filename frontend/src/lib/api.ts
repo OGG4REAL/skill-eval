@@ -1,6 +1,16 @@
 import type {
   ArtifactsRecord,
   EvalRecord,
+  EvaluationBenchmarkDetailResponse,
+  EvaluationBenchmarkListItem,
+  EvaluationBenchmarkRunRequest,
+  EvaluationBenchmarkRunResponse,
+  EvaluationComparisonResponse,
+  EvaluationOverviewResponse,
+  EvaluationSkillSummaryResponse,
+  EvaluationTaskDefinition,
+  EvaluationTaskImportRequest,
+  EvaluationTaskSummary,
   FileInfo,
   MessageResponse,
   RunIndexEntry,
@@ -138,9 +148,73 @@ export async function listEvaluationRuns(limit: number = 50): Promise<RunIndexEn
   );
 }
 
-export async function listEvaluationTasks(): Promise<Record<string, unknown>[]> {
-  return handleResponse<Record<string, unknown>[]>(
+export async function listEvaluationTasks(): Promise<EvaluationTaskDefinition[]> {
+  return handleResponse<EvaluationTaskDefinition[]>(
     await fetch(`${API_BASE}/evaluation/tasks`)
   );
+}
+
+export async function importEvaluationTask(
+  request: EvaluationTaskImportRequest
+): Promise<EvaluationTaskSummary> {
+  const res = await fetch(`${API_BASE}/evaluation/tasks/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<EvaluationTaskSummary>(res);
+}
+
+export async function getEvaluationOverview(): Promise<EvaluationOverviewResponse> {
+  return handleResponse<EvaluationOverviewResponse>(
+    await fetch(`${API_BASE}/evaluation/overview`)
+  );
+}
+
+export async function listEvaluationBenchmarks(): Promise<EvaluationBenchmarkListItem[]> {
+  return handleResponse<EvaluationBenchmarkListItem[]>(
+    await fetch(`${API_BASE}/evaluation/benchmarks`)
+  );
+}
+
+export async function getEvaluationBenchmark(
+  benchmarkId: string
+): Promise<EvaluationBenchmarkDetailResponse> {
+  return handleResponse<EvaluationBenchmarkDetailResponse>(
+    await fetch(`${API_BASE}/evaluation/benchmarks/${encodeURIComponent(benchmarkId)}`)
+  );
+}
+
+export async function getEvaluationSkillSummary(
+  skill: string
+): Promise<EvaluationSkillSummaryResponse> {
+  return handleResponse<EvaluationSkillSummaryResponse>(
+    await fetch(`${API_BASE}/evaluation/skills/${encodeURIComponent(skill)}/summary`)
+  );
+}
+
+export async function getEvaluationComparisons(
+  benchmarkId?: string,
+  variants?: { baselineVariant?: string; targetVariant?: string }
+): Promise<EvaluationComparisonResponse> {
+  const params = new URLSearchParams();
+  if (benchmarkId) params.set("benchmark_id", benchmarkId);
+  if (variants?.baselineVariant) params.set("baseline_variant", variants.baselineVariant);
+  if (variants?.targetVariant) params.set("target_variant", variants.targetVariant);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return handleResponse<EvaluationComparisonResponse>(
+    await fetch(`${API_BASE}/evaluation/comparisons${suffix}`)
+  );
+}
+
+export async function runEvaluationBenchmark(
+  request: EvaluationBenchmarkRunRequest
+): Promise<EvaluationBenchmarkRunResponse> {
+  const res = await fetch(`${API_BASE}/evaluation/benchmarks/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<EvaluationBenchmarkRunResponse>(res);
 }
 

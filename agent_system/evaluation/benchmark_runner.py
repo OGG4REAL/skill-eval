@@ -100,11 +100,15 @@ class BenchmarkRunner:
             scope={"task_id": None, "group": group, "all": False},
         )
 
-    def run_all(self, trials: int = 1) -> dict:
+    def run_all(
+        self,
+        variants: list[str] | None = None,
+        trials: int = 1,
+    ) -> dict:
         tasks = self._task_loader.list_tasks()
         return self._execute(
             tasks=tasks,
-            variant_ids=None,
+            variant_ids=variants,
             trials=trials,
             scope={"task_id": None, "group": None, "all": True},
         )

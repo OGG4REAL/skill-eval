@@ -217,6 +217,76 @@ class TestSkillSummary:
         assert by_skill[0]["positive_tasks"] == ["csv_analysis_clean_general"]
         assert by_skill[0]["negative_tasks"] == []
 
+    def test_comparison_summary_counts_verdicts(self, tmp_path):
+        bench = _make_bench(
+            no_skill_result_score=0.7,
+            with_skill_result_score=1.0,
+            extra_agg=[
+                {"task_id": "task_negative", "variant_id": "no_skill", "trials": 1,
+                 "pass_rate": 1.0, "result_pass_rate": 1.0,
+                 "avg_result_score": 1.0, "avg_weighted_score": 1.0,
+                 "avg_duration_ms": 10, "avg_tool_calls": 1, "avg_tool_errors": 0},
+                {"task_id": "task_negative", "variant_id": "with_skill", "trials": 1,
+                 "pass_rate": 1.0, "result_pass_rate": 0.0,
+                 "avg_result_score": 0.5, "avg_weighted_score": 0.5,
+                 "avg_duration_ms": 10, "avg_tool_calls": 1, "avg_tool_errors": 0},
+                {"task_id": "task_neutral", "variant_id": "no_skill", "trials": 1,
+                 "pass_rate": 1.0, "result_pass_rate": 1.0,
+                 "avg_result_score": 0.8, "avg_weighted_score": 0.8,
+                 "avg_duration_ms": 10, "avg_tool_calls": 1, "avg_tool_errors": 0},
+                {"task_id": "task_neutral", "variant_id": "with_skill", "trials": 1,
+                 "pass_rate": 1.0, "result_pass_rate": 1.0,
+                 "avg_result_score": 0.805, "avg_weighted_score": 0.805,
+                 "avg_duration_ms": 10, "avg_tool_calls": 1, "avg_tool_errors": 0},
+            ],
+        )
+        _write_bench(tmp_path, bench)
+        store = BenchmarkStore(tmp_path)
+        mock_loader = MagicMock()
+        mock_loader.get_task.side_effect = Exception("no task loader")
+        comp = SkillComparator(store=store, task_loader=mock_loader)
+
+        summary = SkillComparator.summarize_comparison(
+            comp.compare_benchmark("bench_001")
+        )
+
+        assert summary["source"] == "bench_001"
+        assert summary["tasks_compared"] == 3
+        assert summary["skills_compared"] == 1
+        assert summary["positive_tasks"] == 1
+        assert summary["negative_tasks"] == 1
+        assert summary["neutral_tasks"] == 1
+        assert summary["avg_result_score_uplift"] == pytest.approx(-0.065)
+
+    def test_comparison_response_keeps_detail_lists(self, tmp_path):
+        bench = _make_bench(
+            no_skill_result_score=0.7,
+            with_skill_result_score=1.0,
+        )
+        _write_bench(tmp_path, bench)
+        store = BenchmarkStore(tmp_path)
+        comp = SkillComparator(store=store, task_loader=None)
+
+        response = comp.build_comparison_response("bench_001")
+        raw = comp.compare_benchmark("bench_001")
+
+        assert "comparisons" in raw
+        assert response["summary"]["tasks_compared"] == 1
+        assert len(response["by_task"]) == 1
+        assert len(response["by_skill"]) == 1
+
+    def test_unknown_skill_summary_returns_empty_state(self, tmp_path):
+        _write_bench(tmp_path, _make_bench())
+        store = BenchmarkStore(tmp_path)
+        comp = SkillComparator(store=store, task_loader=None)
+
+        result = comp.build_skill_summary_contract("unknown-skill")
+
+        assert result["summary"]["skill"] == "unknown-skill"
+        assert result["summary"]["tasks_compared"] == 0
+        assert result["tasks"] == []
+        assert result["recent_benchmarks"] == []
+
     def test_multi_task_multi_skill(self, tmp_path):
         bench = _make_bench(
             no_skill_score=0.8, with_skill_score=0.95,

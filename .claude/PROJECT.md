@@ -141,7 +141,9 @@ sessions/{session_id}/runs/{run_id}/
 - `Phase 2` 仍然坚持本地事实源，不接外部 eval 平台
 - 联网能力规划文档：`docs/web-search-tool-design.md`
 - 联网能力当前路线：先做 provider-neutral 的 `WebSearch`，底层接 `Tavily`，后续再按真实场景补 `WebExtract`
-- 联网工具命名与返回结构不直接透传 provider 原生 schema，优先保持 Agent 能力语义稳定
+- 联网工具命名与返回结构不直接透传 provider 原生 schema，
+优先保持 Agent 能力语义稳定
 - 为 `workspace` 接口补测试
 - 为中间文件查看器补 JSON/日志专用增强视图
 - 接入 CopilotKit 标准 Runtime
+

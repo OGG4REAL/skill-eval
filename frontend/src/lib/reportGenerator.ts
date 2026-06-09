@@ -176,7 +176,25 @@ function buildEChartsOption(args: RenderChartArgs): Record<string, unknown> {
 // ─── HTML 片段生成 ────────────────────────────────────────────
 
 function htmlEscape(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function scriptSafeJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+function renderTextContent(content: string): string {
+  return `<div class="content-block"><pre class="plain-content">${htmlEscape(content)}</pre></div>`;
 }
 
 function renderNotifications(items: ShowNotificationArgs[]): string {
@@ -284,6 +302,13 @@ body {
   margin-bottom: 24px;
   border: 1px solid rgba(255,255,255,0.07);
 }
+.plain-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #c8c8d8;
+  font: inherit;
+  margin: 0;
+}
 .content-block h1, .content-block h2 { color: #fff; font-weight: 600; margin: 28px 0 12px; }
 .content-block h1 { font-size: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
 .content-block h2 { font-size: 1.2rem; }
@@ -377,7 +402,7 @@ export function generateReportHtml(
   let chartGlobalIdx = 0;
 
   // 渲染各 section
-  const sectionsHtml = sections.map((section, sIdx) => {
+  const sectionsHtml = sections.map((section) => {
     let html = '';
 
     if (section.question) {
@@ -393,12 +418,7 @@ export function generateReportHtml(
     }
 
     if (section.content.trim()) {
-      // Markdown 在报告页内用 marked 渲染（CDN），id 唯一
-      const mdId = `md-${sIdx}`;
-      // 内容存储在隐藏的 <script> 标签，由 marked 渲染
-      html += `
-<div class="content-block" id="${mdId}-target"></div>
-<script type="text/markdown" id="${mdId}">${section.content.replace(/<\/script>/g, '<\\/script>')}</script>`;
+      html += renderTextContent(section.content);
     }
 
     for (const chart of section.charts) {
@@ -409,7 +429,7 @@ export function generateReportHtml(
   var el = document.getElementById('${cid}');
   if (!el) return;
   var c = echarts.init(el, 'dark');
-  c.setOption(${JSON.stringify(option)});
+  c.setOption(${scriptSafeJson(option)});
   window.addEventListener('resize', function(){ c.resize(); });
 })();`);
       html += `<div class="chart-wrapper"><div id="${cid}" class="chart-box"></div></div>`;
@@ -427,39 +447,25 @@ export function generateReportHtml(
     .filter(Boolean)
     .join('<hr class="section-sep">');
 
-  // marked 渲染脚本（遍历所有 text/markdown script 标签）
-  const markdownRenderScript = `
-(function(){
-  if (typeof marked === 'undefined') return;
-  marked.use({ gfm: true, breaks: false });
-  document.querySelectorAll('script[type="text/markdown"]').forEach(function(el){
-    var targetId = el.id + '-target';
-    var target = document.getElementById(targetId);
-    if (target) target.innerHTML = marked.parse(el.textContent || '');
-  });
-})();`;
-
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Studio 报告 · ${sessionId} · ${timestamp}</title>
+  <title>Debug Lab 会话报告 · ${htmlEscape(sessionId)} · ${htmlEscape(timestamp)}</title>
   <style>${STYLES}</style>
 </head>
 <body>
   <div class="report-wrap">
     <header class="report-header">
-      <h1>Agent Studio 报告</h1>
+      <h1>Debug Lab 会话报告</h1>
       <p class="meta">生成时间：${timestamp}&emsp;|&emsp;会话：${htmlEscape(sessionId)}</p>
     </header>
     ${bodyContent || '<p style="color:#666;text-align:center">暂无内容</p>'}
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
   <script>
-    ${markdownRenderScript}
     ${chartInits.join('\n')}
   </script>
 </body>
@@ -471,12 +477,13 @@ export function generateReportHtml(
 export function downloadReport(sessionId: string, messages: ChatMessage[]): void {
   const sections = extractReportContent(messages);
   const html = generateReportHtml(sessionId, sections);
+  const safeSessionId = sessionId.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'session';
 
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `agent-studio-report-${sessionId}-${Date.now()}.html`;
+  link.download = `debug-lab-report-${safeSessionId}-${Date.now()}.html`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

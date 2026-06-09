@@ -12,6 +12,7 @@ Claude Skills Agent - Docker MCP Server
 
 import sys
 import json
+import shlex
 import subprocess
 import traceback
 from io import StringIO
@@ -42,6 +43,8 @@ HEAD_RATIO = 0.8                # 头部保留比例（头尾保留策略）
 
 # List 保护
 MAX_LIST_RESULTS = 500          # 目录列表最大返回条目数
+ALLOWED_BASH_COMMANDS = {"python", "python3"}
+FORBIDDEN_COMMAND_TOKENS = ("\n", "\r", "\x00", ";", "&&", "||", "|", ">", "<", "`", "$(", "&")
 
 
 # ============================================================================
@@ -104,6 +107,36 @@ def _truncate_output(text: str, max_chars: int = MAX_OUTPUT_CHARS) -> str:
         + f"\n\n...[输出被截断，共 {len(text)} 字符，保留头部 {head_size} + 尾部 {tail_size} 字符]...\n\n"
         + text[-tail_size:]
     )
+
+
+def _validate_exec_command(command: str) -> List[str]:
+    """Return a safe argv for python script execution."""
+    command = command.strip()
+    if not command:
+        raise ValueError("Empty command")
+    if any(token in command for token in FORBIDDEN_COMMAND_TOKENS):
+        raise ValueError("Forbidden shell control characters in command")
+
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        raise ValueError(f"Invalid command syntax: {exc}") from exc
+
+    if len(argv) < 2:
+        raise ValueError("Command must execute a .py script file")
+    if argv[0] not in ALLOWED_BASH_COMMANDS:
+        raise ValueError(f"Only python/python3 allowed, got {argv[0]!r}")
+    if argv[1] in {"-c", "-m"}:
+        raise ValueError("python -c and -m are forbidden")
+    if argv[1].startswith("-") or not argv[1].endswith(".py"):
+        raise ValueError("Command must execute a .py script file")
+
+    script_path = Path(argv[1])
+    target = script_path.resolve() if script_path.is_absolute() else (WORKSPACE / script_path).resolve()
+    if not target.is_relative_to(WORKSPACE):
+        raise ValueError("Script path must be inside /workspace")
+
+    return [argv[0], str(target), *argv[2:]]
 
 
 # ============================================================================
@@ -377,9 +410,10 @@ def exec_command(command: str, timeout: int = 30) -> str:
         JSON 格式的执行结果（stdout 超过 30000 字符时自动截断）
     """
     try:
+        argv = _validate_exec_command(command)
         result = subprocess.run(
-            command,
-            shell=True,
+            argv,
+            shell=False,
             capture_output=True,
             text=True,
             timeout=timeout,

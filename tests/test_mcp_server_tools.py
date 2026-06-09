@@ -13,6 +13,7 @@ MCP Server 原子工具单元测试
 """
 
 import json
+import importlib.util
 import sys
 import os
 import types
@@ -56,8 +57,12 @@ sys.modules["mcp.server"] = _mock_mcp_server
 sys.modules["mcp.server.fastmcp"] = _mock_mcp_fastmcp
 
 # 添加 docker-sandbox 到路径，导入 server 模块
-sys.path.insert(0, str(Path(__file__).parent.parent / "docker-sandbox"))
-import server  # noqa: E402
+_sandbox_server_path = Path(__file__).parent.parent / "docker-sandbox" / "server.py"
+_sandbox_server_spec = importlib.util.spec_from_file_location("docker_sandbox_server", _sandbox_server_path)
+assert _sandbox_server_spec and _sandbox_server_spec.loader
+server = importlib.util.module_from_spec(_sandbox_server_spec)
+sys.modules["docker_sandbox_server"] = server
+_sandbox_server_spec.loader.exec_module(server)
 
 
 # ============================================================================
@@ -541,7 +546,8 @@ class TestExecCommand:
 
     def test_basic_command(self):
         """基本命令执行"""
-        cmd = 'python -c "print(\'hello\')"'
+        fixture.create_file("temp/basic_command.py", "print('hello')")
+        cmd = "python temp/basic_command.py"
         result = parse(server.exec_command(cmd))
         assert result["status"] == "completed"
         assert result["exit_code"] == 0
@@ -549,26 +555,37 @@ class TestExecCommand:
 
     def test_command_stderr(self):
         """stderr 输出"""
-        cmd = 'python -c "import sys; print(\'err\', file=sys.stderr)"'
+        fixture.create_file("temp/stderr_command.py", "import sys\nprint('err', file=sys.stderr)")
+        cmd = "python temp/stderr_command.py"
         result = parse(server.exec_command(cmd))
         assert "err" in result["stderr"]
 
     def test_command_exit_code(self):
         """非零退出码"""
-        cmd = 'python -c "exit(42)"'
+        fixture.create_file("temp/exit_code_command.py", "raise SystemExit(42)")
+        cmd = "python temp/exit_code_command.py"
         result = parse(server.exec_command(cmd))
         assert result["exit_code"] == 42
 
     def test_command_timeout(self):
         """命令超时"""
-        cmd = 'python -c "import time; time.sleep(10)"'
+        fixture.create_file("temp/timeout_command.py", "import time\ntime.sleep(10)")
+        cmd = "python temp/timeout_command.py"
         result = parse(server.exec_command(cmd, timeout=1))
         assert result["status"] == "timeout"
+
+    def test_inline_python_rejected(self):
+        """python -c must not reach a shell."""
+        result = parse(server.exec_command('python -c "print(1)"'))
+        assert result["status"] == "error"
+        assert "forbidden" in result["stderr"].lower() or "-c" in result["stderr"]
 
     def test_stdout_truncation(self):
         """标准输出截断"""
         # 生成超过 30000 字符的输出
-        cmd = 'python -c "print(\'A\' * 20000 + \'B\' * 20000)"'
+        fixture.create_file("temp/stdout_truncation.py", "print('A' * 20000 + 'B' * 20000)")
+        fixture.create_file("temp/stdout_truncation.py", "print('A' * 20000 + 'B' * 20000)")
+        cmd = "python temp/stdout_truncation.py"
         result = parse(server.exec_command(cmd))
         assert result["status"] == "completed"
         stdout = result["stdout"]

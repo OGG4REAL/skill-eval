@@ -1,6 +1,6 @@
-# Claude Skills Lab - Atomic Tools Edition
+# Skill Eval Studio - Atomic Tools Edition
 
-> **项目定位**：复现 Claude Skills 核心模式的实验性 Agent 系统，通过 Docker MCP 沙盒实现可控的 Bash Runtime 和审计友好的 Python 执行环境。
+> **项目定位**：面向可插拔 skills 的本地评估与复盘工作台，通过 Docker MCP 沙盒、原子工具和本地 benchmark harness 验证 skill 对 Agent 表现的增益。
 
 ## 核心架构 (v2.0 原子工具基座)
 
@@ -40,7 +40,7 @@ csv-data-summarizer/
 │   └── fin-advisor-math/     # 金融计算技能 (Tier 1/Tier 2 分层模式)
 ├── sessions/                 # 会话数据 (uploads/output/temp)
 ├── tests/                    # 测试套件 (158+ 单元测试)
-└── docs/                     # 设计文档 (atomic_tool_redesign.md)
+└── docs/                     # 当前 spec coding 文档入口
 ```
 
 ## 开发约定
@@ -146,6 +146,8 @@ python -m pytest tests/test_phase4_skill_purification.py
 
 ## 参考文档
 
-- [原子工具重构规划 (docs/atomic_tool_redesign.md)](docs/atomic_tool_redesign.md)
+- [Docs Index](docs/README.md)
+- [系统架构](docs/architecture/overview.md)
+- [Skill Eval 当前改造](docs/skill-eval-restructure/README.md)
 - [Claude Skills 官方文档](https://code.claude.com/docs/en/skills)
 - [MCP 协议规范](https://github.com/anthropics/mcp)

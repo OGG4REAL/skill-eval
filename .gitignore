@@ -12,6 +12,7 @@ test.csv
 *.md
 !README.md
 !docs/*.md
+!docs/**/*.md
 !skills/*/SKILL.md
 !.claude/skills/*/SKILL.md
 !.cursor/skills-cursor/*/SKILL.md
@@ -70,6 +71,8 @@ Thumbs.db
 
 # Agent output
 output/
+.playwright-cli/
+transcript-*.json
 *.png
 *.jpg
 *.jpeg

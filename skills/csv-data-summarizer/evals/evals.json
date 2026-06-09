@@ -1,0 +1,44 @@
+{
+  "skill_name": "csv-data-summarizer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我看看这个销售数据，最近感觉有些产品卖得还行有些不行，想知道问题在哪",
+      "expected_output": "Business narrative analysis identifying top/bottom performing products and regions, with specific numbers and actionable observations. Should feel like a briefing from a colleague, not a stats report.",
+      "files": ["evals/files/sample_sales.csv"],
+      "expectations": [
+        "Identifies which product or region is the top performer with a specific revenue number",
+        "Compares performance across at least two dimensions (e.g., product vs product, or region vs region)",
+        "Provides at least one observation that goes beyond raw numbers — e.g., a trend, an anomaly, or a business implication",
+        "The response reads as a narrative or briefing, not just a table or list of statistics",
+        "Does not ask the user what analysis they want — just does the analysis"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "这是我们公司最近15个月的财务数据，帮我分析一下各产品线表现怎么样，有没有需要注意的地方",
+      "expected_output": "Multi-product financial analysis covering revenue trends, profitability by product line, and growth trajectory. Should identify SaaS Platform as top line, note margin differences, and flag any notable trends or concerns.",
+      "files": ["evals/files/financial_pl.csv"],
+      "expectations": [
+        "Identifies SaaS Platform as the highest-revenue product line",
+        "Mentions or compares profitability or margin across product lines (not just revenue)",
+        "Identifies a trend over time — growth, acceleration, deceleration, or concern",
+        "Uses business language to contextualize numbers (e.g., 'margins are healthy', 'growth is accelerating', 'this warrants attention') rather than just stating numbers",
+        "Covers at least two of the three product lines in the analysis"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "我们有一批银行客户数据，里面有个字段表示客户有没有流失。帮我看看到底是什么样的客户在流失，我想知道应该重点保留哪类人",
+      "expected_output": "Customer churn analysis identifying overall churn rate, key risk factors (credit score, region, age, balance), and specific customer segments most at risk. Should give actionable retention recommendations.",
+      "files": ["evals/files/customer_churn.csv"],
+      "expectations": [
+        "Calculates and states the overall churn rate as a percentage",
+        "Identifies at least two factors that correlate with higher churn (e.g., region, credit score, age, activity status)",
+        "Describes a specific customer segment or profile that is at higher risk of churning",
+        "Provides at least one concrete recommendation about which customers to prioritize for retention",
+        "The analysis goes beyond correlation to offer a business interpretation (e.g., why a factor might matter, what it implies)"
+      ]
+    }
+  ]
+}

@@ -10,6 +10,9 @@ interface TableActionProps {
   args: RenderTableArgs;
 }
 
+const EMPTY_COLUMNS: TableColumn[] = [];
+const EMPTY_ROWS: Record<string, unknown>[] = [];
+
 // 格式化单元格值
 function formatCellValue(value: unknown, type?: TableColumn['type']): string {
   if (value === null || value === undefined) return '-';
@@ -33,7 +36,57 @@ function formatCellValue(value: unknown, type?: TableColumn['type']): string {
 export function TableAction({ args }: TableActionProps) {
   const { title, columns, rows, options } = args;
 
-  if (!columns || !rows) {
+  const hasValidTableData = Array.isArray(columns) && Array.isArray(rows);
+  const safeColumns = hasValidTableData ? columns : EMPTY_COLUMNS;
+  const safeRows = hasValidTableData ? rows : EMPTY_ROWS;
+
+  const pageSize = options?.page_size || 10;
+  const showPagination = options?.show_pagination !== false;
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // 排序数据
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return safeRows;
+    
+    return [...safeRows].sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      
+      if (aVal === bVal) return 0;
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      
+      const compare = aVal < bVal ? -1 : 1;
+      return sortOrder === 'asc' ? compare : -compare;
+    });
+  }, [safeRows, sortKey, sortOrder]);
+
+  // 分页数据
+  const totalPages = Math.ceil(sortedRows.length / pageSize);
+  const paginatedRows = showPagination 
+    ? sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : sortedRows;
+
+  // 找出数值列的最大值（用于高亮）
+  const maxValues = useMemo(() => {
+    if (!options?.highlight_max) return {};
+    
+    const result: Record<string, number> = {};
+    safeColumns.forEach(col => {
+      if (col.type === 'number' || col.type === 'currency') {
+        const values = safeRows.map(r => r[col.key]).filter(v => typeof v === 'number') as number[];
+        if (values.length > 0) {
+          result[col.key] = Math.max(...values);
+        }
+      }
+    });
+    return result;
+  }, [safeRows, safeColumns, options?.highlight_max]);
+
+  if (!hasValidTableData) {
     return (
       <div style={{
         background: 'rgba(255, 255, 255, 0.03)',
@@ -48,52 +101,6 @@ export function TableAction({ args }: TableActionProps) {
       </div>
     );
   }
-
-  const pageSize = options?.page_size || 10;
-  const showPagination = options?.show_pagination !== false;
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-  // 排序数据
-  const sortedRows = useMemo(() => {
-    if (!sortKey) return rows;
-    
-    return [...rows].sort((a, b) => {
-      const aVal = a[sortKey];
-      const bVal = b[sortKey];
-      
-      if (aVal === bVal) return 0;
-      if (aVal === null || aVal === undefined) return 1;
-      if (bVal === null || bVal === undefined) return -1;
-      
-      const compare = aVal < bVal ? -1 : 1;
-      return sortOrder === 'asc' ? compare : -compare;
-    });
-  }, [rows, sortKey, sortOrder]);
-
-  // 分页数据
-  const totalPages = Math.ceil(sortedRows.length / pageSize);
-  const paginatedRows = showPagination 
-    ? sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-    : sortedRows;
-
-  // 找出数值列的最大值（用于高亮）
-  const maxValues = useMemo(() => {
-    if (!options?.highlight_max) return {};
-    
-    const result: Record<string, number> = {};
-    columns.forEach(col => {
-      if (col.type === 'number' || col.type === 'currency') {
-        const values = rows.map(r => r[col.key]).filter(v => typeof v === 'number') as number[];
-        if (values.length > 0) {
-          result[col.key] = Math.max(...values);
-        }
-      }
-    });
-    return result;
-  }, [rows, columns, options?.highlight_max]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -130,7 +137,7 @@ export function TableAction({ args }: TableActionProps) {
         }}>
           <thead>
             <tr>
-              {columns.map(col => (
+              {safeColumns.map(col => (
                 <th
                   key={col.key}
                   onClick={() => col.sortable !== false && handleSort(col.key)}
@@ -163,7 +170,7 @@ export function TableAction({ args }: TableActionProps) {
                   background: rowIndex % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.02)',
                 }}
               >
-                {columns.map(col => {
+                {safeColumns.map(col => {
                   const value = row[col.key];
                   const isMax = options?.highlight_max && 
                     maxValues[col.key] !== undefined && 
@@ -237,7 +244,7 @@ export function TableAction({ args }: TableActionProps) {
         color: 'rgba(255, 255, 255, 0.5)',
         textAlign: 'right',
       }}>
-        共 {rows.length} 条记录
+        共 {safeRows.length} 条记录
       </div>
     </div>
   );

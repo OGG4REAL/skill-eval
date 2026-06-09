@@ -180,6 +180,32 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
             console.print(f"  [red]持久化失败: {e}，返回原始输出[/red]")
             return result_str
 
+    def _snapshot_tracked_artifacts(self) -> set[Path]:
+        base_dir = self.log_file.parent
+        tracked_dirs = [
+            base_dir / "temp",
+            base_dir / "output",
+            base_dir / TOOL_RESULTS_DIR_NAME,
+        ]
+        files: set[Path] = set()
+        for root in tracked_dirs:
+            if not root.exists():
+                continue
+            try:
+                files.update(path for path in root.rglob("*") if path.is_file())
+            except OSError:
+                continue
+        return files
+
+    def _record_new_tracked_artifacts(self, recorder: RunRecorder, before: set[Path]) -> None:
+        base_dir = self.log_file.parent
+        for path in sorted(self._snapshot_tracked_artifacts() - before):
+            try:
+                rel_path = path.relative_to(base_dir).as_posix()
+            except ValueError:
+                continue
+            recorder.record_artifact_created(rel_path)
+
     def _init_log_file(self):
         """初始化日志文件"""
         if not self.log_file.exists():
@@ -544,6 +570,7 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
                     # ============================================
                     else:
                         tc_start = recorder.record_tool_call_start(tool_name, tool_args)
+                        artifact_snapshot = self._snapshot_tracked_artifacts()
                         try:
                             result = self.tool_registry.execute(tool_name, **tool_args)
                             result_str = str(result)
@@ -579,6 +606,8 @@ Preview (first {PERSISTED_OUTPUT_PREVIEW_SIZE} chars):
                             console.print(f"  [red]{result_str}[/red]")
                             execution_log.append(f"  {result_str}")
                             _emit("error", result_str)
+
+                        self._record_new_tracked_artifacts(recorder, artifact_snapshot)
 
                     # L1 门卫：检查并持久化大输出
                     persisted = self._persist_tool_output(result_str, tool_call["id"], tool_name)

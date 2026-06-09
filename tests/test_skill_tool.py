@@ -5,19 +5,14 @@ Skill 工具单元测试：Phase1 Skill 工具引入与适配
 """
 import json
 import sys
-import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-# 修复 Windows 控制台编码问题
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent_system.tools.base import BaseTool, ToolRegistry
-from agent_system.tools.skill_tool import SkillTool, SKILL_TOOL_DESCRIPTION_TEMPLATE
+from agent_system.tools.skill_tool import SkillTool
 from agent_system.skills.manager import SkillManager
 
 

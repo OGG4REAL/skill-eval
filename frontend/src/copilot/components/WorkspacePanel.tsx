@@ -19,7 +19,7 @@ interface WorkspacePanelProps {
   onOpenViewer: () => void;
   onToggleOpen: () => void;
   onRefresh: () => void;
-  // Trajectory / Evaluation 数据
+  // Debug Lab 的 run 分析数据；trajectory/eval 仍保留为底层对象名。
   currentRun?: RunRecord | null;
   currentTrajectory?: TrajectoryEvent[];
   currentEval?: EvalRecord | null;
@@ -34,9 +34,9 @@ interface WorkspacePanelProps {
 
 const TAB_OPTIONS: Array<{ key: WorkspaceTabKey; label: string }> = [
   { key: "filesystem", label: "文件系统" },
-  { key: "skills", label: "Skill" },
-  { key: "trajectory", label: "Trajectory" },
-  { key: "evaluation", label: "Evaluation" },
+  { key: "skills", label: "Skills" },
+  { key: "trajectory", label: "Run Trace" },
+  { key: "evaluation", label: "Skill Eval" },
 ];
 
 function formatFileSize(size?: number | null) {
@@ -259,9 +259,9 @@ export function WorkspacePanel({
           }}
         >
           <div>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#f4f7ff" }}>Studio Workspace</div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "#f4f7ff" }}>Debug Workspace</div>
             <div style={{ marginTop: "4px", fontSize: "12px", color: "rgba(255, 255, 255, 0.52)" }}>
-              当前会话的逻辑 /workspace 视图
+              当前 Debug Lab session 的逻辑 /workspace 视图
             </div>
           </div>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -328,7 +328,7 @@ export function WorkspacePanel({
       </header>
 
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        {/* Trajectory / Evaluation 标签使用专用面板 */}
+        {/* Run Trace / Run Eval 标签使用专用面板 */}
         {activeTab === "trajectory" ? (
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 12px 12px" }}>
             <TrajectoryPanel

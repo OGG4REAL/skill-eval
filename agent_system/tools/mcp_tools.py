@@ -15,7 +15,7 @@ import shlex
 import subprocess
 import threading
 import queue
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional, Dict, Any, List, Tuple
 
 from .base import BaseTool
@@ -502,7 +502,7 @@ class BashTool(BaseTool):
     """
 
     ALLOWED_COMMANDS = {'python', 'python3'}
-    DANGEROUS_PATTERNS = ['>', '>>', '|', ';', '&&', '||', '`', '$(', 'rm ', 'mv ']
+    DANGEROUS_PATTERNS = ['\n', '\r', '\x00', '>', '>>', '<', '|', ';', '&&', '||', '&', '`', '$(', 'rm ', 'mv ']
 
     def __init__(self, mcp_client: MCPClient):
         self.client = mcp_client
@@ -559,21 +559,30 @@ class BashTool(BaseTool):
         except ValueError as e:
             return f"Error: Invalid command syntax: {e}"
 
+        if len(parts) < 2:
+            return "Error: Must execute a .py script file"
+
         base_cmd = parts[0]
         if base_cmd not in self.ALLOWED_COMMANDS:
             return f"Error: Only python/python3 allowed, got '{base_cmd}'"
 
         # 禁止 -c 和 -m
-        if len(parts) >= 2 and parts[1] in ('-c', '-m'):
+        if parts[1] in ('-c', '-m'):
             return "Error: python -c and -m are forbidden. Use Write + Bash for audit trail."
 
         # 必须执行 .py 文件
-        if len(parts) >= 2 and not parts[1].endswith('.py'):
+        if not parts[1].endswith('.py'):
             return "Error: Must execute a .py script file"
+
+        script_path = PurePosixPath(parts[1])
+        if "\\" in parts[1] or ".." in script_path.parts:
+            return "Error: Script path must stay inside workspace"
+        if script_path.is_absolute() and not str(script_path).startswith("/workspace/"):
+            return "Error: Script path must stay inside workspace"
 
         # 调用 MCP
         try:
-            result = self.client.call_tool("Bash", {"command": command})
+            result = self.client.call_tool("Bash", {"command": shlex.join(parts)})
         except Exception as e:
             return f"Error: {e}"
 

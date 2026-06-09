@@ -36,6 +36,8 @@ REQUIRED_TOP_LEVEL = {
 OPTIONAL_TOP_LEVEL = {
     "forbidden_signals": list,
     "routing_expectation": dict,
+    "skill_versions": dict,
+    "irrelevant_skills": list,
     "output_contract": dict,
     "ground_truth": dict,
     "verifier": dict,
@@ -44,6 +46,8 @@ OPTIONAL_TOP_LEVEL = {
 OPTIONAL_DEFAULTS: dict[str, Any] = {
     "forbidden_signals": [],
     "routing_expectation": {},
+    "skill_versions": {},
+    "irrelevant_skills": [],
 }
 
 REQUIRED_INPUT = {
@@ -62,7 +66,7 @@ STR_LIST_FIELDS = [
     "expected_artifacts",
 ]
 
-OPTIONAL_STR_LIST_FIELDS = ["forbidden_signals"]
+OPTIONAL_STR_LIST_FIELDS = ["forbidden_signals", "irrelevant_skills"]
 
 
 class TaskLoadError(Exception):

@@ -124,6 +124,18 @@ function ScoreBar({ label, value }: { label: string; value: number | null }) {
 }
 
 export function TrajectoryPanel({ run, trajectory, evalResult, artifacts, loading, onOpenFile }: TrajectoryPanelProps) {
+  const visibleEvents = useMemo(
+    () => trajectory.filter((e) => !["run_started", "llm_call_started"].includes(e.type)),
+    [trajectory]
+  );
+
+  const artifactPaths = useMemo(() => {
+    if (artifacts?.files?.length) {
+      return artifacts.files;
+    }
+    return [...new Set(trajectory.filter((e) => e.type === "artifact_created" && e.path).map((e) => e.path as string))];
+  }, [artifacts, trajectory]);
+
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "24px", color: "rgba(255,255,255,0.55)" }}>
@@ -142,17 +154,6 @@ export function TrajectoryPanel({ run, trajectory, evalResult, artifacts, loadin
       </div>
     );
   }
-
-  const visibleEvents = trajectory.filter(
-    (e) => !["run_started", "llm_call_started"].includes(e.type)
-  );
-
-  const artifactPaths = useMemo(() => {
-    if (artifacts?.files?.length) {
-      return artifacts.files;
-    }
-    return [...new Set(trajectory.filter((e) => e.type === "artifact_created" && e.path).map((e) => e.path as string))];
-  }, [artifacts, trajectory]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "12px 0" }}>

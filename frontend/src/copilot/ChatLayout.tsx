@@ -179,7 +179,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const [workspacePreviewError, setWorkspacePreviewError] = useState<string | null>(null);
   const [centerMode, setCenterMode] = useState<CenterMode>("chat");
 
-  // Run / Trajectory / Eval 状态
+  // Debug Lab 中的 run 复盘状态：trajectory 是 run 的分析材料，不是一等导航对象。
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [currentRun, setCurrentRun] = useState<RunRecord | null>(null);
   const [currentTrajectory, setCurrentTrajectory] = useState<TrajectoryEvent[]>([]);
@@ -629,10 +629,10 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
         >
           <div>
             <h1 style={{ margin: 0, fontSize: "1.65rem", fontWeight: 700, letterSpacing: "-0.03em" }}>
-              Agent Studio
+              Debug Lab
             </h1>
             <p style={{ margin: "6px 0 0", color: "rgba(255, 255, 255, 0.56)", fontSize: "13px" }}>
-              在同一视图里追踪对话、文件与运行痕迹，右侧展示当前会话的 workspace。
+              Skill Eval Studio 的 run 复盘入口，保留会话、workspace、trajectory 与 artifact 分析。
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -787,9 +787,9 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
                     }}
                   >
                     <FileUp size={48} style={{ marginBottom: "16px", opacity: 0.5 }} />
-                    <p style={{ fontSize: "16px", margin: 0 }}>开始一段 Agent Studio 会话</p>
+                    <p style={{ fontSize: "16px", margin: 0 }}>打开一个 run 或输入复盘指令</p>
                     <p style={{ fontSize: "14px", margin: "8px 0 0" }}>
-                      试试输入：「分析一下销售数据」或「打开 chat.log 看看刚才做了什么」
+                      Debug Lab 用于查看 session、workspace、trajectory 和 artifact 上下文。
                     </p>
                   </div>
                 ) : null}
@@ -911,7 +911,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
                     value={inputValue}
                     onChange={(event) => setInputValue(event.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder={sessionId ? "在 Agent Studio 中输入指令... (Enter 发送, Shift+Enter 换行)" : "正在初始化会话，请稍候..."}
+                    placeholder={sessionId ? "在 Debug Lab 中输入复盘指令... (Enter 发送, Shift+Enter 换行)" : "正在初始化会话，请稍候..."}
                     disabled={isLoading || !sessionId}
                     rows={1}
                     style={{
@@ -963,7 +963,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
                     textAlign: "center",
                   }}
                 >
-                  Agent Studio 可能会生成不准确的信息，请核实重要内容
+                  Debug Lab 输出可能会生成不准确的信息，请核实重要内容
                 </p>
               </div>
             </>
