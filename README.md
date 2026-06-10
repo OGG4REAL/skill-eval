@@ -1,153 +1,214 @@
-# Skill Eval Studio - Atomic Tools Edition
+# Skill Eval Studio
 
-> **项目定位**：面向可插拔 skills 的本地评估与复盘工作台，通过 Docker MCP 沙盒、原子工具和本地 benchmark harness 验证 skill 对 Agent 表现的增益。
+一个本地优先的 skill 评估与复盘工作台，用来回答一个直接问题：
 
-## 核心架构 (v2.0 原子工具基座)
+> 某个 skill 到底有没有让 Agent 的任务结果变好？
 
-### 三层加载机制（Claude Skills 复现）
+当前项目已经从早期 Agent Studio / Debug Lab 原型，收敛为面向 skill 的本地 evaluation harness。Debug Lab 仍然保留，用于查看单次 run 的 trajectory、artifact 和 workspace 证据，但最终评分主线以结果校验为准。
 
-1. **Layer 1 - 元数据加载**：启动时扫描 `skills/*/SKILL.md`，仅解析 YAML frontmatter（name, description, metadata），不加载完整内容
-2. **Layer 2 - 按需探索**：Agent 通过 `Read("skills/xxx/SKILL.md")` 自主读取完整技能文档
-3. **Layer 3 - 代码参考**：Agent 通过 `Read("skills/xxx/analyze.py")` 读取参考代码片段（Few-Shot Learning）
+## 现在能做什么
 
-### 原子化工具体系 (Audit-Friendly)
+- 定义本地 evaluation task，并用 result-first verifier 校验最终结果。
+- 运行 benchmark，对比 `no_skill` / `with_skill`。
+- 对比 `skill_v1` / `skill_v2`。
+- 检查 irrelevant skill 误触发。
+- 在前端 Skill Eval 面板里选择 task、上传 task JSON、发起评估并查看结果。
+- 查看 result score、result pass rate、normalized gain、失败样本和 Debug Lab run 引用。
+- 通过 Debug Lab 复盘单次 run 的 trajectory、输出 artifact 和 workspace 文件。
 
-为了满足金融级审计要求，v2.0 移除了不透明的内存 REPL (`run_python_code`)，转而采用 **"Write + Bash"** 的留痕模式：所有执行的代码必须先写入文件，再通过 Python 解释器执行。
+## 不做什么
 
-- **Read**: 读取文件（带分页、自动截断保护、编码识别）
-- **Write**: 写入文件（自动创建目录、1MB 大小限制、审计留痕）
-- **List**: 列出目录（带分页、递归支持）
-- **Bash**: 执行 Python 脚本（仅限 `python/python3`，禁止其他 Shell 命令）
+当前阶段不做：
 
-### Web 模式资源管理
+- 通用 Agent benchmark 平台
+- 外部 eval 平台对接
+- 云端 experiment 管理
+- 后台 job queue / 异步轮询
+- LLM judge
+- 人工审核后台
+- 多模型 leaderboard
+- 多租户权限模型
 
-- **CleanupTTLCache**: 自定义缓存策略，确保会话过期时自动触发 Docker 容器清理
-- **Auto-Cleanup**: 定时器后台巡检，防止僵尸容器泄漏
+这些不是技术上不能做，而是为了让 side project 保持小、直接、可维护。
 
-## 目录结构
+## 项目结构
 
-```
-csv-data-summarizer/
-├── agent_system/             # Agent 核心系统
-│   ├── agent/                # Agent 主循环与提示词
-│   ├── skills/               # Skill 元数据管理
-│   └── tools/                # 工具层适配 (MCPClient, BashTool, ReadTool...)
-├── docker-sandbox/           # MCP Server (server.py) + Dockerfile
-├── server/                   # FastAPI 后端 + CopilotKit Adapter
-├── frontend/                 # React 前端 (CopilotKit 风格)
-├── skills/                   # 技能定义 (Tier 1/Tier 2 策略)
-│   ├── csv-data-summarizer/  # CSV 分析技能 (代码模板模式)
-│   └── fin-advisor-math/     # 金融计算技能 (Tier 1/Tier 2 分层模式)
-├── sessions/                 # 会话数据 (uploads/output/temp)
-├── tests/                    # 测试套件 (158+ 单元测试)
-└── docs/                     # 当前 spec coding 文档入口
-```
-
-## 开发约定
-
-### 1. 技能开发模式 (v2.0 新增)
-
-#### 模式 A: Tier 1 / Tier 2 分层策略 (适用于确定性计算)
-以 `fin-advisor-math` 为例：
-- **Tier 1 (CLI 直调)**: 标准场景直接调用脚本 `Bash("python scripts/finance.py --type aip ...")`
-- **Tier 2 (组合扩展)**: 复杂场景通过 `import` 复用已有函数库，编写组合脚本 `Write(...)` -> `Bash(...)`
-
-#### 模式 B: 代码模板模式 (适用于探索性分析)
-以 `csv-data-summarizer` 为例：
-- `analyze.py` 不作为 CLI 工具，而是作为 **参考实现 (Reference Implementation)**
-- Agent 读取参考代码，学习 NpEncoder、加权比率计算等模式
-- Agent 编写针对当前数据的分析脚本，风格与参考代码趋同
-
-### 2. 审计留痕机制
-
-所有动态代码执行必须遵循 **Write + Bash** 模式：
-
-```python
-# 1. 编写脚本 (留痕)
-Write("temp/analysis_001.py", code_content)
-
-# 2. 执行脚本 (审计)
-Bash("python temp/analysis_001.py")
+```text
+agent_system/
+  agent/                  # Agent 主循环、LLM client、prompt
+  evaluation/             # BenchmarkRunner、TaskLoader、SkillComparator、RunRecorder 等
+  tools/                  # 文件、Bash、MCP 工具适配
+docker-sandbox/           # MCP sandbox server
+evaluations/
+  tasks/                  # 本地 eval task JSON
+  benchmarks/runs/        # benchmark 结果 JSON
+frontend/                 # React + Vite 前端
+server/                   # FastAPI API server
+skills/                   # 被评估的 skills
+tests/                    # 后端 contract、runner、comparator、regression 测试
+docs/                     # 产品、架构、roadmap 和 phase 文档
 ```
 
-### 3. 计算 / 展示分离协议
+## 快速启动
 
-**Skill 输出** → **Agent 调用 UI 工具** → **前端渲染**
+### 1. 安装依赖
 
-- Skill 脚本输出结构化 JSON 数据 (包含 `data` 字段，**严禁**直接生成图片)
-- Agent 根据数据结构调用 `render_chart` / `render_table`
-- 前端组件负责最终渲染 (ECharts / Shadcn UI)
+Windows / PowerShell 下建议先使用 `.venv`：
 
-### 4. 安全限制
-
-- **Bash 白名单**：仅允许 `python` 和 `python3` 命令，禁止管道 `|`、重定向 `>`、`rm` 等
-- **文件系统沙箱**：所有操作限制在 `/workspace` 目录下
-- **Skills 只读**：`skills/` 目录挂载为只读，防止被 Agent 篡改
-
-## 运行方式
-
-### 1. 环境准备
-
-```bash
-# Python 依赖
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements-agent.txt
 
-# 前端依赖
-cd frontend && npm install && cd ..
-
-# 配置环境变量
-cp env.example .env  # 设置 DEEPSEEK_API_KEY
+cd frontend
+npm install
+cd ..
 ```
 
-### 2. 构建 Docker 沙盒
+复制环境变量模板：
 
-```bash
-docker build -t claude-skills-sandbox:latest docker-sandbox
+```powershell
+Copy-Item env.example .env
 ```
 
-### 3. 启动服务
+然后在 `.env` 里配置你的模型 API key，例如 `DEEPSEEK_API_KEY`。
 
-```bash
-# 后端 API (Port 8000)
-uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+### 2. 启动后端
 
-# 前端开发 (Port 5173)
-cd frontend && npm run dev
+```powershell
+.\.venv\Scripts\Activate.ps1
+uvicorn server.app:app --host 127.0.0.1 --port 8001 --reload
 ```
 
-### 4. CLI 调试模式
+后端默认 API 地址：`http://127.0.0.1:8001`
 
-```bash
-python -m agent_system.main "分析 uploads/test.csv"
+### 3. 启动前端
+
+另开一个 PowerShell：
+
+```powershell
+cd frontend
+npm run dev
 ```
 
-## 测试验证
+前端默认地址：`http://127.0.0.1:5173`
 
-本项目包含完善的测试套件 (158+ Tests)，覆盖所有核心功能：
+打开页面后，在右侧面板切到 **Skill Eval**。
 
-```bash
-# Phase 1: Docker MCP Server 工具测试
-python -m pytest tests/test_mcp_server_tools.py
+## 前端评估流程
 
-# Phase 2: Python 端工具类测试
-python -m pytest tests/test_mcp_tool_classes.py
+Skill Eval 面板默认只暴露三个用户概念：
 
-# Phase 3: Web 模式资源清理测试
-python -m pytest tests/test_cleanup_ttl_cache.py
+1. **这个 skill 有没有帮助**
+   - 内部对比：`no_skill` vs `with_skill`
 
-# Phase 4: Skill 策略与净化测试
-python -m pytest tests/test_phase4_skill_purification.py
+2. **两个版本哪个更好**
+   - 内部对比：`skill_v1` vs `skill_v2`
+
+3. **会不会误触发**
+   - 内部对比：`no_skill` vs `irrelevant_skill`
+
+推荐流程：
+
+1. 选择评估模式。
+2. 选择已有 task，或上传一个 task JSON。
+3. 点击 **开始评估**。
+4. 跑完后查看 result uplift、normalized gain、失败样本。
+5. 需要排查时，点击 failed case / run ref 跳到 Debug Lab。
+
+`variant`、`group`、`benchmark_id`、weighted score 等工程细节默认放在高级详情里。
+
+## Task JSON
+
+本地 task 放在：
+
+```text
+evaluations/tasks/*.json
 ```
 
-## CopilotKit 集成现状
+前端上传 task 时会调用：
 
-- ✅ **后端打通**: `/copilotkit/chat` SSE 接口已就绪，支持流式输出和工具调用
-- 🚧 **前端闭环**: 目前使用自定义 SSE 解析，尚未完全接入 CopilotKit 标准 Runtime (Todo: 接入 `useCopilotReadable`)
+```http
+POST /evaluation/tasks/import
+```
 
-## 参考文档
+导入规则：
 
-- [Docs Index](docs/README.md)
-- [系统架构](docs/architecture/overview.md)
-- [Skill Eval 当前改造](docs/skill-eval-restructure/README.md)
-- [Claude Skills 官方文档](https://code.claude.com/docs/en/skills)
-- [MCP 协议规范](https://github.com/anthropics/mcp)
+- 顶层必须是 JSON object。
+- 使用 `TaskLoader` 做 schema 校验。
+- 默认不覆盖同名 task。
+- 返回精简 task 摘要，不暴露本地文件路径。
+
+运行 benchmark 时调用：
+
+```http
+POST /evaluation/benchmarks/run
+```
+
+后端同步运行现有 `BenchmarkRunner`，不引入数据库、不引入后台队列。
+
+## 主要 API
+
+Evaluation API contract：
+
+```text
+GET  /evaluation/overview
+GET  /evaluation/benchmarks
+GET  /evaluation/benchmarks/{benchmark_id}
+GET  /evaluation/skills/{skill}/summary
+GET  /evaluation/comparisons
+GET  /evaluation/tasks
+POST /evaluation/tasks/import
+POST /evaluation/benchmarks/run
+```
+
+兼容旧 Debug Lab / run 查看入口：
+
+```text
+GET /evaluation/runs
+GET /sessions/{session_id}/runs
+GET /sessions/{session_id}/runs/{run_id}/trajectory
+GET /sessions/{session_id}/runs/{run_id}/artifacts
+GET /sessions/{session_id}/runs/{run_id}/eval
+```
+
+## 测试
+
+后端全量测试：
+
+```powershell
+python -m pytest -q
+```
+
+前端检查：
+
+```powershell
+cd frontend
+npm run lint
+npm run build
+```
+
+本轮基线状态：
+
+- `python -m pytest -q`：527 passed
+- `npm run lint`：通过
+- `npm run build`：通过
+
+## 关键文档
+
+- [产品方向](docs/products/skill-eval-studio.md)
+- [Roadmap](docs/products/roadmap.md)
+- [当前状态](docs/skill-eval-restructure/current-state.md)
+- [Result-first verifier](docs/skill-eval-restructure/phase2-12-result-first-verifier.md)
+- [Evaluation API and UI](docs/skill-eval-restructure/phase2-13-evaluation-api-and-ui.md)
+- [Regression and failure cases](docs/skill-eval-restructure/phase2-14-regression-and-failure-cases.md)
+
+## GitHub 留档
+
+当前 GitHub 远端：
+
+```text
+ssh://git@ssh.github.com:443/OGG4REAL/skill-eval.git
+```
+
+推荐后续每次完成一个可验证小闭环后提交一次，避免把临时 sessions、output、Playwright 快照和本地 transcript 推上去。
